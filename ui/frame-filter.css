@@ -1,0 +1,34 @@
+.frame-filter-bar{display:flex;align-items:center;gap:14px;border-top:1px solid #d5ddd2;margin-top:7px;padding-top:7px;font-size:12px;min-width:0}
+.frame-filter-bar>div{display:flex;align-items:center;gap:10px}.frame-filter-bar span{color:#49634f}.frame-filter-bar p{margin:0;flex:1;color:#42614d;font-variant-numeric:tabular-nums}.frame-filter-bar button{margin-left:auto;flex-shrink:0}
+.frame-filter-modal{width:min(640px,92vw);max-height:88vh;overflow-y:auto}
+.frame-filter-modal .modal-top{align-items:center;margin-bottom:10px}.frame-filter-modal h2{font-size:26px;margin:0}
+.frame-filter-modal .filter-intro{margin:0 0 20px;color:#52635b;font-size:14px;line-height:1.5}
+.filter-switch-row{display:flex;align-items:center;justify-content:space-between;gap:18px;border:1px solid #d5e1d2;background:#f4f8f1;border-radius:10px;padding:18px}
+.filter-switch-row strong{display:block;color:#213e32;font-size:15px}.filter-switch-row small{display:block;font-size:12px;line-height:1.5;margin-top:5px;color:#617268}
+#frameFilterEnabled{appearance:none;-webkit-appearance:none;width:42px;height:24px;min-width:42px;padding:0;margin:0;background:#bcc6be;border:0;border-radius:20px;cursor:pointer;position:relative}
+#frameFilterEnabled::after{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;border-radius:50%;background:white;box-shadow:0 1px 3px #0003;transition:transform .15s}
+#frameFilterEnabled:checked{background:#236e53}#frameFilterEnabled:checked::after{transform:translateX(18px)}#frameFilterEnabled:disabled{opacity:.5;cursor:default}
+.filter-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:16px 0 22px}.filter-actions .primary{min-width:88px;margin-left:auto}
+#filterSaveStatus{color:#52695a}.filter-lock-note,.filter-error{font-size:12px;line-height:1.5;border-radius:6px;padding:10px;margin:12px 0 0}.filter-lock-note{background:#f4f1e6;color:#6a5b2d}.filter-error{background:#fff0e8;color:#8c3c25}
+.frame-filter-modal details{border-top:1px solid #dde4d8}
+.frame-filter-modal summary{padding:14px 0;cursor:pointer;font-size:13px;font-weight:650;color:#355746;list-style-position:inside}
+.frame-filter-modal summary:focus-visible{outline:3px solid #8cbcae;outline-offset:2px;border-radius:4px}
+.filter-preview-controls summary span{float:right;font-size:11px;font-weight:400;color:#6d7a70}
+.filter-preview-body{padding:0 0 16px}.filter-preview-body>label{display:block;font-size:12px;margin:0 0 6px}
+#filterVideoSearch{width:100%;min-width:0;margin:0 0 8px;background:#fff}
+#filterVideo{width:100%;min-width:0;font-size:12px}
+#filterVideoTitle{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:8px 0 12px;font-size:11px;line-height:1.5;color:#68786d}
+#filterVideoTitle:empty{display:none}.filter-preview-buttons{display:flex;gap:8px;margin-top:12px}
+#filterPreviewStatus{font-size:12px;color:#506858;line-height:1.5;margin:12px 0 0}
+#filterPreviewStatus:empty{display:none}
+.filter-pagination{display:flex;gap:8px;align-items:center;margin:16px 0 12px;font-size:11px}.filter-pagination[hidden]{display:none}
+.filter-pagination label{display:flex;gap:6px;align-items:center;margin-right:auto}.filter-pagination select{width:auto;height:34px;font-size:11px;padding-left:8px}
+.filter-pagination button{padding:7px 10px}
+#filterPreviewGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#filterPreviewGrid figure{margin:0;border:1px solid #bacab5;border-radius:8px;overflow:hidden;background:#f1f5ee}
+#filterPreviewGrid img{display:block;width:100%;height:145px;object-fit:contain;background:#16231d}
+#filterPreviewGrid figcaption{padding:8px;font-size:11px}
+#filterPreviewGrid .skipped{border-color:#bfc3bf;background:#f0f0ed}
+.filter-info p{font-size:12px;line-height:1.6;color:#617065;margin:0 0 12px}
+.frame-filter-modal .filter-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:1200px){.frame-filter-bar{flex-wrap:wrap;gap:6px 12px}.frame-filter-bar p{font-size:11px}}

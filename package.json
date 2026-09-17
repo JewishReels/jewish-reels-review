@@ -1,0 +1,23 @@
+{
+  "name": "jewish-reels",
+  "productName": "Jewish Reels",
+  "version": "2.4.54",
+  "private": true,
+  "description": "Jewish Reels archival-footage preparation and visual review",
+  "author": "Avi Schwartz",
+  "license": "UNLICENSED",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node scripts/test.cjs",
+    "package": "node scripts/package.cjs",
+    "screenshots": "node scripts/capture-readme-screenshots-browser.cjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "^19.0.1",
+    "electron": "44.3.0"
+  },
+  "dependencies": {
+    "sharp": "0.34.5"
+  }
+}

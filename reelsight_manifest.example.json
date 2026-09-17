@@ -1,0 +1,14 @@
+[
+  {
+    "id": "12345",
+    "title": "Optional display title",
+    "url": "https://example.com/source-video",
+    "mp4": "videos/shared-reel.mp4"
+  },
+  {
+    "id": "12346",
+    "title": "Another ID for the identical complete reel",
+    "url": "https://example.com/another-source-record",
+    "mp4": "videos/shared-reel.mp4"
+  }
+]

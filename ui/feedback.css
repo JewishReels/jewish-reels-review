@@ -1,0 +1,22 @@
+.feedback-panel{border:1px solid #b6c6bb;border-radius:7px;padding:12px;margin:14px 0;background:#f4f7f2;color:#23382c}
+.feedback-panel h3{font-size:14px;margin:0 0 8px}
+.feedback-panel p{font-size:12px;line-height:1.5;color:#314333}
+#feedbackFields label{display:block;font-size:12px;font-weight:600;margin:10px 0 5px;color:#23382c}
+#feedbackReason{font-size:12px;height:auto;min-height:36px;white-space:normal}
+#feedbackNote{font:inherit;font-size:12px;display:block;width:100%;padding:8px;border:1px solid #8a9e91;border-radius:5px;color:#172c2c;background:white;resize:vertical;max-height:140px}
+#feedbackNote::placeholder{color:#526252}
+#markFalseHit,#undoFeedback{border-color:#8f5640;color:#6b311b;background:#fff9f5;white-space:normal}
+.feedback-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.feedback-actions .button{white-space:normal}
+.pill.false-hit{background:#f6dfd1;color:#713419;letter-spacing:.3px}
+.pill.confirmed-hit{background:#dcefe2;color:#1e5b35;letter-spacing:.3px}
+.feedback-panel .feedback-help{font-size:11px;margin-bottom:0}
+.evidence-notes{overflow-y:auto;min-height:0}
+.filter-bar{flex-wrap:wrap}
+.learning-modal{width:min(1040px,calc(100vw - 64px));max-height:calc(100vh - 54px);overflow:auto;color:#172c2c}
+.learning-controls{display:flex;gap:12px;align-items:end;margin:16px 0 10px}.learning-controls label:first-child{flex:1;min-width:200px}.learning-controls label{font-size:12px;font-weight:600;color:#213e30}.learning-controls select{margin-top:6px}.learning-controls input{display:block;width:85px;height:42px;margin-top:6px}
+.learning-note,.learning-intro{font-size:12px;line-height:1.5;color:#3f5045}.learning-note{margin:7px 0}
+.learning-options{display:flex;gap:20px;flex-wrap:wrap;font-size:12px}.learning-options label{color:#283f32}
+.learning-progress{background:#edf3ed;border:1px solid #b6c7b9;border-radius:6px;padding:12px;margin:14px 0}.learning-progress>span{float:right;font-size:12px}.learning-progress p{font-size:12px;margin-bottom:0}
+.learning-lessons{max-height:42vh;overflow:auto}.learning-lesson{border:1px solid #bbc9bf;border-radius:7px;padding:14px;margin:10px 0;background:white}.lesson-heading{display:flex;justify-content:space-between;gap:10px}.learning-lesson h3{font:600 12px 'Segoe UI',sans-serif;margin:12px 0 4px;color:#173b2b}.learning-lesson p{font-size:12px;line-height:1.5;margin:5px 0;color:#263e31}.lesson-actions{display:flex;gap:8px;margin-top:12px}.learning-empty{padding:16px;color:#384b3b}
+@media(max-width:800px){.learning-controls{flex-wrap:wrap}.learning-progress>span{float:none;display:block;margin-top:8px}}

@@ -1,0 +1,56 @@
+# Dependencies and generated builds
+node_modules/
+dist/
+out/
+release/
+outputs/
+package-resources/
+*.exe
+*.dll
+*.zip
+
+# Credentials and machine-local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
+
+# Local browser and Electron profiles
+.theme-check-userdata/
+ui/.readme-capture.html
+ui/.readme-demo.js
+ui/.readme-evidence.png
+
+# Scratch files, downloads, and logs
+.tmp-*
+*.log
+*.part
+*.download
+high-holidays-streamable-urls.txt
+
+# Jewish Reels workspaces and generated evidence
+Footage Workspace/
+.pipeline/
+frames/
+logs/
+reports/
+chat_verdicts.json
+reelsight_manifest.json
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.mp4
+*.mov
+*.webm
+*.mkv
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
