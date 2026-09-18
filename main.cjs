@@ -162,7 +162,11 @@ async function createWindow() {
     pipeline.setReviewIds(['running','pausing'].includes(s.status) ? (s.videos || []).map(v => v.id) : []);
     if(['paused','attention','complete','error'].includes(s.status))flushReviewState();
     else if(!reviewStateTimer)reviewStateTimer=setTimeout(flushReviewState,250);
-  }); engine.on('verdict', e => { F.load(selectedProject.root).then(journal => send('new-verdict', V.summaries([e], journal)[0])).catch(err=>engine.event(err.message,'warning')); pipeline.syncVerdicts().then(changed).catch(err=>pipeline.update({message:err.message})); });
+  }); engine.on('verdict', e => { F.load(selectedProject.root).then(journal => send('new-verdict', V.summaries([e], journal)[0])).catch(err=>engine.event(err.message,'warning')); });
+  // Cleanup must run after the review task releases its ID; an earlier verdict
+  // event is intentionally skipped while that ID is still protected as active.
+  // Settling is the one ordered synchronization point for both verdicts and
+  // deferred failures, avoiding two full maintenance sweeps per video.
   engine.on('video-settled', () => pipeline.syncVerdicts().then(changed).catch(err=>pipeline.update({message:err.message})));
   win = new BrowserWindow({ width: 1450, height: 980, minWidth: 1120, minHeight: 760, show: false, title: 'Jewish Reels · Archive Review', backgroundColor: '#f3eee4', icon: path.join(__dirname, 'assets', 'icon.ico'), autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false, webSecurity: true } });
