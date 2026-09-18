@@ -28,7 +28,11 @@ if(testMode)app.disableHardwareAcceleration();
 app.setPath('userData', path.join(app.getPath('appData'), 'ReelSight'));
 if (testMode && process.env.REELSIGHT_TEST_USERDATA) app.setPath('userData', process.env.REELSIGHT_TEST_USERDATA);
 app.setName('Jewish Reels');
-let win, selectedProject = null, catalog = [], settings = {}, secret = process.env.OPENROUTER_API_KEY || '', scrapflySecret = process.env.SCRAPFLY_API_KEY || '', engine, pipeline, learner, hitRecheck, starting = false,crawlWorker=null;
+function environmentScrapflyKey() {
+  try { return Scrapfly.normalizedKey(process.env.SCRAPFLY_API_KEY); }
+  catch { return ''; }
+}
+let win, selectedProject = null, catalog = [], settings = {}, secret = process.env.OPENROUTER_API_KEY || '', scrapflySecret = environmentScrapflyKey(), engine, pipeline, learner, hitRecheck, starting = false,crawlWorker=null;
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function send(channel, value) { if (win && !win.isDestroyed()) win.webContents.send(channel, value); }
 let persistWrites=Promise.resolve();
@@ -38,7 +42,7 @@ async function persist() {
   return persistWrites;
 }
 function connectionStatus() { return { configured: !!secret, remembered: !!settings.encryptedKey, environment: !!process.env.OPENROUTER_API_KEY }; }
-function scrapflyStatus() { return Scrapfly.publicStatus(scrapflySecret, { remembered: !!settings.encryptedScrapflyKey, environment: !!process.env.SCRAPFLY_API_KEY }); }
+function scrapflyStatus() { return Scrapfly.publicStatus(scrapflySecret, { remembered: !!settings.encryptedScrapflyKey, environment: !!environmentScrapflyKey() }); }
 function vimeoAccessStatus() {
   try { return VimeoAuth.publicVimeoAuth(settings.vimeoAuth); }
   catch { return { mode: 'none', configured: false }; }
@@ -165,7 +169,7 @@ async function createWindow() {
     try { secret = safeStorage.decryptString(Buffer.from(settings.encryptedKey, 'base64')); } catch { delete settings.encryptedKey; }
   }
   if (!scrapflySecret && settings.encryptedScrapflyKey) {
-    try { scrapflySecret = safeStorage.decryptString(Buffer.from(settings.encryptedScrapflyKey, 'base64')); } catch { delete settings.encryptedScrapflyKey; }
+    try { scrapflySecret = Scrapfly.normalizedKey(safeStorage.decryptString(Buffer.from(settings.encryptedScrapflyKey, 'base64'))); } catch { delete settings.encryptedScrapflyKey; }
   }
   engine = new ReviewEngine({ reviewer: API.reviewImage, prepareCard: makeImageAdapter(nativeImage) });
   learner = new LearningEngine({ analyze: API.analyzeMistake, prepareImages: makeLearningImages(nativeImage), account: async data => { await engine.usage.record(data); engine.update(engine.usage.snapshot()); } });
@@ -316,7 +320,7 @@ async function createWindow() {
   });
   handle('forget-scrapfly-key', async () => {
     if(pipeline.running||crawlWorker)throw new Error('Pause footage preparation before changing Scrapfly access.');
-    scrapflySecret=process.env.SCRAPFLY_API_KEY||'';delete settings.encryptedScrapflyKey;await persist();
+    scrapflySecret=environmentScrapflyKey();delete settings.encryptedScrapflyKey;await persist();
     const retried=scrapflySecret?pipeline.store?.retryScrapflyRequired()||0:0;
     if(retried){pipeline.update({message:`Environment Scrapfly access restored. ${retried} rate-limited Footage Farm lookups were queued again.`});ensureBackfill();}
     return {...scrapflyStatus(),retried};
