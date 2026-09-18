@@ -310,12 +310,15 @@ async function createWindow() {
   });
   handle('forget-key', async () => { noRun(); secret = ''; delete settings.encryptedKey; await persist(); return connectionStatus(); });
   handle('save-scrapfly-key', async ({key,remember}={}) => {
-    if(pipeline.running||crawlWorker)throw new Error('Pause footage preparation before changing Scrapfly access.');
+    if(crawlWorker||(pipeline.running&&pipeline.state.status!=='buffered'))throw new Error('Wait for the ready buffer to fill, or pause footage preparation, before changing Scrapfly access.');
     const normalized=Scrapfly.normalizedKey(key);if(!normalized)throw new Error('Enter a Scrapfly API key.');scrapflySecret=normalized;
     if(remember&&!safeStorage.isEncryptionAvailable())throw new Error('Windows secure storage is unavailable. Turn off Remember to use the Scrapfly key for this session.');
     if(remember)settings.encryptedScrapflyKey=safeStorage.encryptString(scrapflySecret).toString('base64');else delete settings.encryptedScrapflyKey;
     await persist();const retried=pipeline.store?.retryScrapflyRequired()||0;
-    if(retried){pipeline.update({message:`Scrapfly access saved. ${retried} rate-limited Footage Farm lookups were queued again.`});ensureBackfill();}
+    if(retried){
+      pipeline.update({message:`Scrapfly access saved. ${retried} rate-limited Footage Farm lookups were queued again.`});
+      if(pipeline.running)pipeline.notifyWork();else ensureBackfill();
+    }
     return {...scrapflyStatus(),retried};
   });
   handle('forget-scrapfly-key', async () => {

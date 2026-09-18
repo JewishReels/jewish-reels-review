@@ -25,3 +25,11 @@ test('saved-hit views use the workspace-wide hit collection while active review 
  assert.match(bulk,/for \(const entry of hitEntries\.slice\(\)\.reverse\(\)\)/);
  assert.match(html,/ALL SOURCES/);
 });
+
+test('a full ready buffer still allows Scrapfly access to be entered and saved',()=>{
+ const app=fs.readFileSync(path.join(__dirname,'..','ui','app.js'),'utf8'),main=fs.readFileSync(path.join(__dirname,'..','main.cjs'),'utf8');
+ assert.match(app,/\['scrapflyApiKey','rememberScrapflyKey'\]\)\$\(id\)\.disabled=false/);
+ assert.match(app,/saveScrapflyKey'\)\.disabled=\['running','pausing','crawling'\]\.includes\(s\.status\)/);
+ assert.match(main,/pipeline\.running&&pipeline\.state\.status!=='buffered'/);
+ assert.match(main,/if\(pipeline\.running\)pipeline\.notifyWork\(\);else ensureBackfill\(\)/);
+});
