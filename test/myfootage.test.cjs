@@ -38,6 +38,11 @@ test('results parser keeps video previews, decodes titles, and rejects mismatche
   </script>`;
   const result = M.parseResultsPage(html, 'https://www.myfootage.com/results.asp?x0=1930s');
   assert.equal(result.tallies.NumPix, 2);
+  assert.deepEqual(result.resultIds, ['100547', '100548', '100549']);
+  assert.deepEqual(result.skipped, [
+    { id: '100548', reason: 'no-public-video-preview', media_type: 'Video' },
+    { id: '100549', reason: 'not-video', media_type: 'Photo' }
+  ]);
   assert.deepEqual(result.items, [{
     id: '100547', catalog_id: '100547',
     url: 'https://www.myfootage.com/preview.asp?item=100547',
@@ -95,20 +100,25 @@ test('authorized catalog crawl stays locked without permission and checkpoints d
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const output = path.join(root, 'myfootage.json'), calls = [];
   const item = (id, caption) => `{"ItemID":"${id}","MediaType":"Video","Caption":"${caption}","PRPath":"/pix/${id.slice(0,3)}/${id}-${caption.toLowerCase()}.mp4"}`;
-  const page = (number, items) => `<script>
-    var ResultsTallies = {"NumPages":2,"CurrentPage":${number},"PixPerPage":50,"RequestW":"4","RequestF":"0001","NextSearchURL":${number === 1 ? '"W=4&F=0001&Step=51"' : '""'}};
+  const page = (number, total, pages, items) => `<script>
+    var ResultsTallies = {"NumPix":${total},"NumPages":${pages},"CurrentPage":${number},"PixPerPage":50,"RequestW":"4","RequestF":"0001","NextSearchURL":${number < pages ? '"W=4&F=0001&Step=51"' : '""'}};
     var ResultsItems = [${items.join(',')}];
   </script>`;
   const fetchImpl = async (url, options = {}) => {
     calls.push({ url: String(url), cookie: options.headers?.Cookie || '' });
     if (String(url) === 'https://www.myfootage.com/') {
-      return new Response('<script>var aValue = ["results.asp?x0=1930s"];</script>', { headers: { 'Set-Cookie': 'discovery=complete; Path=/; Secure' } });
+      return new Response('<html><body>MyFootage</body></html>', { headers: { 'Set-Cookie': 'discovery=complete; Path=/; Secure' } });
     }
-    const continued = String(url).includes('Step=51') && /ASPSESSIONID=authorized-session/.test(options.headers?.Cookie || '');
+    const request = new URL(url), format = request.searchParams.get('lstformats');
+    const continued = request.searchParams.get('Step') === '51' && /ASPSESSIONID=partition-0/.test(options.headers?.Cookie || '');
     const headers = new Headers();
-    headers.append('Set-Cookie', 'ASPSESSIONID=authorized-session; Path=/; HttpOnly; Secure');
-    headers.append('Set-Cookie', 'lastsearch=1930s; Path=/; Secure');
-    return new Response(continued ? page(2, [item('100002', 'Second')]) : page(1, [item('100001', 'First')]), { headers });
+    headers.append('Set-Cookie', `ASPSESSIONID=partition-${format ?? 0}; Path=/; HttpOnly; Secure`);
+    headers.append('Set-Cookie', `lastsearch=format-${format ?? 0}; Path=/; Secure`);
+    if (continued) return new Response(page(2, 2, 2, [item('100002', 'Second')]), { headers });
+    if (format === '0') return new Response(page(1, 2, 2, [item('100001', 'First')]), { headers });
+    if (format === '1') return new Response(page(1, 0, 0, []), { headers });
+    if (format === '2') return new Response(page(1, 1, 1, [item('100003', 'Third')]), { headers });
+    return new Response(page(1, 1, 1, [item('100004', 'Fourth')]), { headers });
   };
   await assert.rejects(
     M.crawlAuthorizedCatalog({ startUrl: 'https://www.myfootage.com/', output, fetchImpl, delayMs: 0 }),
@@ -117,20 +127,23 @@ test('authorized catalog crawl stays locked without permission and checkpoints d
   assert.equal(calls.length, 0, 'locked crawl must not contact the source');
   const progress = [];
   const result = await M.crawlAuthorizedCatalog({ startUrl: 'https://www.myfootage.com/', output, authorized: true, fetchImpl, delayMs: 0, onProgress: value => progress.push(value) });
-  assert.equal(result.total, 2);
-  assert.equal(result.pages, 2);
-  assert.equal(calls.length, 3, 'one home page and two result pages');
-  assert.doesNotMatch(calls[2].url, /x0=/);
-  assert.match(calls[2].url, /W=4/);
-  assert.match(calls[2].url, /F=0001/);
-  assert.match(calls[2].url, /Step=51/);
-  assert.match(calls[2].cookie, /ASPSESSIONID=authorized-session/);
-  assert.match(calls[2].cookie, /lastsearch=1930s/);
+  assert.equal(result.total, 4);
+  assert.equal(result.catalogTotal, 4);
+  assert.equal(result.skipped, 0);
+  assert.equal(result.pages, 5);
+  assert.equal(calls.length, 6, 'one home page and five partition result pages');
+  const continuation = calls.find(call => /Step=51/.test(call.url));
+  assert.ok(continuation);
+  assert.doesNotMatch(continuation.url, /lstformats|fotid/);
+  assert.match(continuation.url, /W=4/);
+  assert.match(continuation.url, /F=0001/);
+  assert.match(continuation.cookie, /ASPSESSIONID=partition-0/);
+  assert.match(continuation.cookie, /lastsearch=format-0/);
   const saved = JSON.parse(await fs.readFile(output, 'utf8'));
   assert.equal(saved.source.mode, 'authorized-catalog');
   assert.ok(saved.source.authorized_at);
-  assert.deepEqual(saved.items.map(row => row.id), ['100001', '100002']);
-  assert.deepEqual(progress.at(-1), { stage: 'pages', completed: 2, total: 2, reels: 2 });
+  assert.deepEqual(saved.items.map(row => row.id), ['100001', '100002', '100003', '100004']);
+  assert.deepEqual(progress.at(-1), { stage: 'pages', completed: 5, total: 5, reels: 4 });
 });
 
 test('MyFootage pagination follows the declared continuation without carrying the decade filter', () => {
@@ -170,6 +183,15 @@ test('MyFootage has stable decade seeds when the homepage exposes no catalog mar
   assert.deepEqual(M.catalogSeeds('<html><body>Temporarily minimal home page</body></html>'), []);
 });
 
+test('MyFootage full-catalog seeds split the official photographer by all four exclusive formats', () => {
+  assert.deepEqual(M.fullCatalogSeeds(), [
+    'https://www.myfootage.com/results.asp?fotid=001&lstformats=0',
+    'https://www.myfootage.com/results.asp?fotid=001&lstformats=1',
+    'https://www.myfootage.com/results.asp?fotid=001&lstformats=2',
+    'https://www.myfootage.com/results.asp?fotid=001&lstformats=3'
+  ]);
+});
+
 test('MyFootage catalog seed discovery rejects unrelated and malformed result searches', () => {
   const html = `<script>var aValue = [
     "results.asp?search=vintage",
@@ -182,29 +204,55 @@ test('MyFootage catalog seed discovery rejects unrelated and malformed result se
   assert.deepEqual(M.catalogSeeds(html), []);
 });
 
-test('authorized MyFootage crawl uses stable decade fallback when home page discovery is empty', async t => {
+test('authorized MyFootage home crawl uses the exhaustive format partitions', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'myfootage-fallback-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const output = path.join(root, 'myfootage.json'), calls = [];
   const fetchImpl = async url => {
     calls.push(String(url));
     if (String(url) === 'https://www.myfootage.com/') return new Response('<html><body>No rendered links</body></html>');
-    const decade = new URL(url).searchParams.get('x0');
-    const index = M.DEFAULT_DECADES.indexOf(decade);
+    const format = new URL(url).searchParams.get('lstformats');
+    const index = M.CATALOG_FORMATS.indexOf(format);
     const id = String(200000 + index);
+    const row = format === '1'
+      ? `{"ItemID":"${id}","MediaType":"Image","Caption":"format-${format}","PRPath":""}`
+      : `{"ItemID":"${id}","MediaType":"Video","Caption":"format-${format}","PRPath":"/pix/${id.slice(0,3)}/${id}-format-${format}.mp4"}`;
     return new Response(`<script>
-      var ResultsTallies = {"NumPages":1,"CurrentPage":1,"PixPerPage":50,"RequestW":"4","RequestF":"0001"};
-      var ResultsItems = [{"ItemID":"${id}","MediaType":"Video","Caption":"${decade}","PRPath":"/pix/${id.slice(0,3)}/${id}-${decade}.mp4"}];
+      var ResultsTallies = {"NumPix":1,"NumPages":1,"CurrentPage":1,"PixPerPage":50,"RequestW":"4","RequestF":"0001"};
+      var ResultsItems = [${row}];
     </script>`);
   };
   const result = await M.crawlAuthorizedCatalog({
     startUrl: 'https://www.myfootage.com/', output, authorized: true, fetchImpl, delayMs: 0
   });
-  assert.equal(result.total, 15);
-  assert.equal(result.pages, 15);
-  assert.equal(calls.length, 16, 'one home page and all 15 known decade result pages');
+  assert.equal(result.total, 3);
+  assert.equal(result.catalogTotal, 4);
+  assert.equal(result.skipped, 1);
+  assert.equal(result.pages, 4);
+  assert.equal(calls.length, 5, 'one home page and all four official format partitions');
   const saved = JSON.parse(await fs.readFile(output, 'utf8'));
-  assert.equal(saved.items.length, 15);
-  assert.equal(saved.items[0].title, '1880s');
-  assert.equal(saved.items.at(-1).title, '2020s');
+  assert.equal(saved.catalog_results, 4);
+  assert.equal(saved.skipped_nonvideo_or_unplayable, 1);
+  assert.equal(saved.items.length, 3);
+  assert.equal(saved.items[0].title, 'format-0');
+  assert.equal(saved.items.at(-1).title, 'format-3');
+});
+
+test('authorized full-catalog crawl refuses to silently drop a declared partition row', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'myfootage-incomplete-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const output = path.join(root, 'myfootage.json');
+  const fetchImpl = async url => {
+    if (String(url) === 'https://www.myfootage.com/') return new Response('<html>MyFootage</html>');
+    const format = new URL(url).searchParams.get('lstformats');
+    const total = format === '0' ? 2 : 0;
+    return new Response(`<script>
+      var ResultsTallies = {"NumPix":${total},"NumPages":${total ? 1 : 0},"CurrentPage":1,"PixPerPage":50,"RequestW":"4","RequestF":"0001"};
+      var ResultsItems = ${total ? '[{"ItemID":"100001","MediaType":"Video","Caption":"Only one","PRPath":"/pix/100/100001-only-one.mp4"}]' : '[]'};
+    </script>`);
+  };
+  await assert.rejects(
+    M.crawlAuthorizedCatalog({ startUrl: 'https://www.myfootage.com/', output, authorized: true, fetchImpl, delayMs: 0 }),
+    /declared 2 results.*1 unique catalog row/i
+  );
 });

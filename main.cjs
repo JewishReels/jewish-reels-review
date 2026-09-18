@@ -240,7 +240,7 @@ async function createWindow() {
     try{
       const crawl=await new Promise((resolve,reject)=>{let settled=false,last=0;crawlWorker=new Worker(path.join(__dirname,'lib','crawl-worker.cjs'),{workerData:{startUrl:parsed.href,output:file,concurrency:6,authorized:host==='myfootage.com'&&authorized===true}});crawlWorker.on('message',message=>{if(message.type==='progress'){const now=Date.now();if(now-last>400){last=now;const p=message.value;pipeline.update({status:'crawling',crawl:p,message:`Reading ${parsed.hostname} · ${p.completed.toLocaleString()} pages · ${p.reels.toLocaleString()} video URLs`});}}else if(message.type==='done'){settled=true;resolve(message.value);}else if(message.type==='error'){settled=true;reject(new Error(message.error));}});crawlWorker.on('error',reject);crawlWorker.on('exit',code=>{crawlWorker=null;if(!settled)reject(new Error(code?'Website crawl worker stopped unexpectedly.':'Website crawl was paused.'));});});
       const result=await pipeline.import(file,{sourceKey:crawl.sourceKey,label:crawl.label,kind:'crawled'});settings.activeSource=crawl.sourceKey;await persist();
-      selectedProject=await S.discover(selectedProject.root,{sourceKey:crawl.sourceKey});send('project-updated',await projectCounts(selectedProject));ensureBackfill();return{...crawl,...result};
+      selectedProject=await S.discover(selectedProject.root,{sourceKey:crawl.sourceKey});send('project-updated',await projectCounts(selectedProject));ensureBackfill();return{...result,...crawl,queueTotal:result.total};
     }catch(e){pipeline.update({status:e.message.includes('paused')?'paused':'error',message:`Website crawl stopped: ${e.message}`});throw e;}finally{starting=false;crawlWorker=null;}
   });
   handle('set-active-source', async key => {
