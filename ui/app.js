@@ -76,7 +76,7 @@ function toast(message, error = false) { $('toast').textContent = message; $('to
 function act(fn) { return async (...args) => { try { return await fn(...args); } catch (e) { toast(e.message, true); } }; }
 function setConnection(c) { connected = c.configured; $('connectionDot').classList.toggle('connected', connected); $('connectionLabel').textContent = connected ? 'OpenRouter key configured' : 'OpenRouter not connected'; $('connectBtn').textContent = connected ? 'Manage connection' : 'Connect'; $('keyStatus').textContent = c.remembered ? 'Your key is encrypted for this Windows account.' : c.environment ? 'Using OPENROUTER_API_KEY from the environment.' : 'Without Remember, the key is used for this session only.'; $('rememberKey').checked = c.remembered; controls(); window.renderRecheck?.(); }
 function controls() {
-  const running = ['running', 'pausing'].includes(state.status) || !!window.filterPreviewBusy || !!window.recheckBusy;
+  const running = !!state.busy || ['starting', 'running', 'pausing'].includes(state.status) || !!window.filterPreviewBusy || !!window.recheckBusy;
   const learning = !!window.learningBusy;
   for (const id of ['chooseFolder','emptyChoose','refreshProject','refreshModels','primaryModel','verification','detail','budget','workers','videoConcurrency','dispatchMode','saveKey','forgetKey']) $(id).disabled = running;
   $('detail').disabled=running;
@@ -166,7 +166,7 @@ function renderManualReview(items) {
   }));
 }
 function renderWorkers() {
-  const running = ['running','pausing'].includes(state.status);
+  const running = ['starting','running','pausing'].includes(state.status);
   const count = running ? state.workers || 1 : Number($('workers').value);
   const active = state.active || [];
   const videoLimit = running ? state.videoConcurrency || 1 : Number($('videoConcurrency').value);
@@ -610,7 +610,7 @@ $('forgetKey').onclick=act(async()=>{setConnection(await api.call('forget-key'))
 $('refreshModels').onclick=refreshModels;
 for(const id of ['primaryModel','secondaryModel'])$(id).onchange=()=>{prices();controls();window.refreshRecheckModels?.();};
 $('verification').onchange=()=>{prices();controls();};
-$('startBtn').onclick=act(async()=>{ $('startBtn').disabled=true;try{await api.call('start-review',{primary:$('primaryModel').value,secondary:$('secondaryModel').value,verification:$('verification').checked,verificationMode:$('verificationMode').value,detail:$('detail').checked,budget:Number($('budget').value),workers:Number($('workers').value),videoConcurrency:Number($('videoConcurrency').value),dispatchMode:$('dispatchMode').value});}finally{controls();} });
+$('startBtn').onclick=act(async()=>{ $('startBtn').disabled=true;try{const result=await api.call('start-review',{primary:$('primaryModel').value,secondary:$('secondaryModel').value,verification:$('verification').checked,verificationMode:$('verificationMode').value,detail:$('detail').checked,budget:Number($('budget').value),workers:Number($('workers').value),videoConcurrency:Number($('videoConcurrency').value),dispatchMode:$('dispatchMode').value});if(result?.state)renderState(result.state);if(result?.alreadyRunning)toast('Review is already running. Live progress has been restored.');}finally{controls();} });
 $('pauseBtn').onclick=act(()=>api.call('pause-review'));
 $('search').oninput=()=>{resultPage=0;renderResults();};
 document.querySelectorAll('[data-filter]').forEach(button=>button.onclick=()=>{resultPage=0;selectedFilter=button.dataset.filter;document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('selected',b===button));renderResults();});

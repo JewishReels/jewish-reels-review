@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.57 · Windows 10 and 11
+  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.58 · Windows 10 and 11
 </p>
 
 ![Jewish Reels displaying a real saved match, its source contact sheet, highlighted visual evidence, and model explanation](docs/screenshots/03-review-match-live.png)

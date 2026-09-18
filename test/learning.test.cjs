@@ -33,9 +33,10 @@ test('invalid, contradictory and injected generated rules cannot be used',()=>{
 });
 
 test('every retrain reprocesses all active feedback and automatically rebuilds its exclusion rules',async t=>{
- const f=await fixture(t);let calls=0,applied=[];const engine=make(f,async()=>({...negativeAnalysis,cost:.03,request_id:'r-'+(++calls)}));
+ const f=await fixture(t);let calls=0,applied=[];const terminalBusy=[];const engine=make(f,async()=>({...negativeAnalysis,cost:.03,request_id:'r-'+(++calls)}));engine.on('state',state=>{if(state.status==='complete')terminalBusy.push(state.busy);});
  const run=()=>engine.run({...f.options,applyRules:async rules=>{applied=rules;}});
  await run();assert.equal(engine.state.status,'complete');assert.equal(calls,1);assert.equal(applied.length,1);assert.equal(applied[0].kind,'exclusion');
+ assert.deepEqual(terminalBusy.slice(-2),[true,false]);assert.equal(engine.snapshot().busy,false);
  let doc=await L.load(f.root);assert.equal(L.enabled(doc,await f.flags()).length,1);assert.match(F.prompt(await F.workspaceContext(f.root)),/shoulder epaulettes/);
  await run();assert.equal(calls,2);doc=await L.load(f.root);assert.equal(doc.lessons.length,2);assert.equal(L.generatedRules(doc,await f.flags()).length,1);
  const entry=f.entries[0];await F.save(f.root,{id:entry.id,expectedTarget:F.targetKey(entry),action:'undo'});assert.equal(L.generatedRules(await L.load(f.root),await f.flags()).length,0);assert.equal((await F.workspaceContext(f.root)).revision,null);assert.ok(L.view(await L.load(f.root),await f.flags()).every(x=>x.stale));

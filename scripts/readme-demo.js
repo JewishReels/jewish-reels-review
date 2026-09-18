@@ -146,7 +146,7 @@ const recheck = {
 async function call(method, ...args) {
   switch (method) {
     case 'bootstrap': return {
-      version: '2.4.57',
+      version: '2.4.58',
       settings: { folder: project.root, activeSource: 'footage-farm', primary: models[0].id, secondary: '', verification: false, verificationMode: 'positives', detail: true, budget: 10, workers: 16, videoConcurrency: 4, dispatchMode: 'concurrent', recheckBudget: 10, recheckWorkers: 16, autoBackfill: true, preparation: { fps: 2, width: 960, buffer: 5, maxGB: 20 } },
       connection: { configured: true, remembered: true, environment: false }, state, recheck, preparation,
       sources: [{ label: 'Demo URL collection', file: 'synthetic-demo-urls.txt' }], criteria: criteriaView
@@ -177,7 +177,7 @@ else {
   globalThis.reelsight = demoApi;
   addEventListener('DOMContentLoaded', () => {
     const chooseView = () => {
-      if (!document.title.includes('2.4.57') || document.getElementById('folderName')?.textContent !== 'Demo Workspace') return setTimeout(chooseView, 50);
+      if (!document.title.includes('2.4.58') || document.getElementById('folderName')?.textContent !== 'Demo Workspace') return setTimeout(chooseView, 50);
       if (location.hash === '#review') document.getElementById('reviewNav').click();
       if (location.hash === '#matches') document.getElementById('matchesNav').click();
     };

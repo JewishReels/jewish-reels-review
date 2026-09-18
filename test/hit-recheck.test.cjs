@@ -32,7 +32,7 @@ test('saved-hit recheck deduplicates pixels, uses one reviewer and leaves the ve
   const ledger=JSON.stringify(entries);await fs.writeFile(path.join(root,'chat_verdicts.json'),ledger);
   let calls=0,accounted=0;
   const reviewer=async({model,image})=>{calls++;const stats=await sharp(Buffer.from(image.data,'base64')).stats(),d=stats.dominant;if(d.r>d.g&&d.r>d.b)return no(model.id);if(d.g>d.r&&d.g>d.b)return model.id==='primary'?hit(model.id,'tallit_tefillin'):no(model.id);return hit(model.id,'kippah_religious_setting');};
-  const audit=new HitRecheck({reviewer,account:async value=>{accounted+=value.cost||0;}}),policy=Policy.compile();
+  const terminalBusy=[];const audit=new HitRecheck({reviewer,account:async value=>{accounted+=value.cost||0;}}),policy=Policy.compile();audit.on('state',state=>{if(state.status==='complete')terminalBusy.push(state.busy);});
   const result=await audit.run({root,key:'test',primary:{id:'primary'},policy,workers:2,budget:1});
   assert.equal(result.status,'complete');assert.equal(result.uniqueImages,3);assert.equal(result.completed,3);assert.equal(result.confirmed,2);assert.equal(result.rejectedPrimary,1);assert.equal(result.rejectedUnconfirmed,0);assert.equal(result.errors,0);assert.equal(calls,3);assert.equal(accounted,.003);
   const reportDir=audit.reportDir(root,policy.VERSION),saved=JSON.parse(await fs.readFile(path.join(reportDir,'results.json'),'utf8'));
@@ -42,6 +42,7 @@ test('saved-hit recheck deduplicates pixels, uses one reviewer and leaves the ve
   const live=JSON.parse(await fs.readFile(path.join(reportDir,'live.json'),'utf8'));assert.equal(live.status,'complete');assert.equal(live.completed,3);
   assert.match(await fs.readFile(path.join(reportDir,'report.html'),'utf8'),/confirmed hit/i);assert.match(await fs.readFile(path.join(reportDir,'report.html'),'utf8'),/re-read once by primary/i);
   assert.equal(await fs.readFile(path.join(root,'chat_verdicts.json'),'utf8'),ledger);
+  assert.deepEqual(terminalBusy.slice(-2),[true,false]);assert.equal(audit.snapshot().busy,false);
 });
 
 test('saved-hit initialization failure becomes a visible error and releases the run lock',async t=>{

@@ -21,9 +21,20 @@ async function fixture(t, specs={ '1':['a','b'], '2':['c'] }, ledger) {
 }
 const prepareCard = async p => [{ data:(await fs.readFile(p)).toString('base64'),mime:'image/png',bounds:{x:0,y:0,width:100,height:100},imageSize:{width:100,height:100} }];
 const options = root => ({ root,key:'TEST_ONLY',primary,budget:100 });
+test('review publishes starting state before workspace discovery yields',async t=>{
+  const root=await fixture(t,{'1':['a']});
+  const e=new ReviewEngine({rateLimitOptions:{spacingMs:0},prepareCard,reviewer:async()=>no});
+  const run=e.run(options(root));
+  assert.equal(e.running,true);
+  assert.equal(e.state.status,'starting');
+  assert.match(e.state.message,/restoring saved review progress/i);
+  await run;
+  assert.equal(e.state.status,'complete');
+});
 test('first strict hit stops that video; no requires every card',async t=>{
-  const root=await fixture(t);let calls=0;const e=new ReviewEngine({rateLimitOptions:{spacingMs:0},prepareCard,reviewer:async()=> ++calls===1?hit:no});await e.run(options(root));
+  const root=await fixture(t);let calls=0;const terminalBusy=[];const e=new ReviewEngine({rateLimitOptions:{spacingMs:0},prepareCard,reviewer:async()=> ++calls===1?hit:no});e.on('state',s=>{if(s.status==='complete')terminalBusy.push(s.busy);});await e.run(options(root));
   const {entries}=await S.loadLedger(root);assert.equal(calls,2);assert.equal(entries[0].verdict,'jewish');assert.deepEqual(entries[0].cards_reviewed,['card_001.jpg']);assert.equal(entries[1].verdict,'no');assert.equal(e.state.status,'complete');
+  assert.deepEqual(terminalBusy.slice(-2),[true,false]);assert.equal(e.snapshot().busy,false);
 });
 test('both independent models inspect every region before no',async t=>{
   const root=await fixture(t,{'1':['a','b','c']});let calls=0;const e=new ReviewEngine({rateLimitOptions:{spacingMs:0},prepareCard,reviewer:async()=>{calls++;return no;}});await e.run({...options(root),secondary});

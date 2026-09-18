@@ -262,6 +262,10 @@ async function createWindow() {
   });
   handle('forget-key', async () => { noRun(); secret = ''; delete settings.encryptedKey; await persist(); return connectionStatus(); });
   handle('start-review', async options => {
+    // A stale renderer can submit Start again while a large workspace is still
+    // being opened. The requested work already exists, so resynchronize the UI
+    // instead of reporting the unrelated settings-change guard.
+    if (engine.running) return { alreadyRunning: true, state: engine.snapshot() };
     noRun(); if (!selectedProject) throw new Error('Choose a project folder.'); if (!secret) throw new Error('Add your OpenRouter API key in Settings.');
     starting = true;
     try {
@@ -280,7 +284,7 @@ async function createWindow() {
     Object.assign(settings, { workers, videoConcurrency, dispatchMode, primary: primary.id, secondary: secondary?.id || options.secondary, verification: !!options.verification, verificationMode, detail: !!options.detail, budget }); await persist();
     ensureBackfill();
     engine.run({ root: selectedProject.root, sourceKey:settings.activeSource||null, key: secret, primary, secondary, verificationMode, detail: !!options.detail, budget, workers, videoConcurrency, dispatchMode, policy: activePolicy(), followPreparation: () => ({ running: pipeline.running, status: pipeline.state.status, message: pipeline.state.message }) }).catch(e => engine.update({ status: 'error', message: e.message }));
-    return true;
+    return { started: true, state: engine.snapshot() };
     } finally { starting = false; }
   });
   handle('set-dispatch-mode', async mode => { noRun(); if (!['one-at-a-time','concurrent'].includes(mode)) throw new Error('Choose Take turns or Run concurrently.'); settings.dispatchMode=mode; await persist(); return mode; });

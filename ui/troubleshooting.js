@@ -1,7 +1,7 @@
 let recheckState={status:'idle',uniqueImages:0,completed:0,confirmed:0,rejectedPrimary:0,rejectedUnconfirmed:0,errors:0,requests:0,spend:0};
 
 function renderRecheck(state={}){
-  recheckState={...recheckState,...state};const s=recheckState,total=Number(s.uniqueImages||0),done=Number(s.completed||0),preparing=s.status==='preparing',progressTotal=preparing?Number(s.preparingTotal||s.sourceEvidenceRows||0):total,progressDone=preparing?Number(s.preparingCompleted||0):done,pct=progressTotal?Math.min(100,Math.round(progressDone/progressTotal*100)):0,busy=['starting','preparing','running','pausing'].includes(s.status),pausable=['preparing','running','pausing'].includes(s.status);
+  recheckState={...recheckState,...state};const s=recheckState,total=Number(s.uniqueImages||0),done=Number(s.completed||0),preparing=s.status==='preparing',progressTotal=preparing?Number(s.preparingTotal||s.sourceEvidenceRows||0):total,progressDone=preparing?Number(s.preparingCompleted||0):done,pct=progressTotal?Math.min(100,Math.round(progressDone/progressTotal*100)):0,busy=!!s.busy||['starting','preparing','running','pausing'].includes(s.status),pausable=['preparing','running','pausing'].includes(s.status);
   window.recheckBusy=busy;
   $('recheckHitRecords').textContent=Number(s.sourceHitRecords||0).toLocaleString();$('recheckEvidenceRows').textContent=Number(s.sourceEvidenceRows||0).toLocaleString();$('recheckUniqueImages').textContent=total.toLocaleString();$('recheckPolicy').textContent=s.policy||'—';
   $('recheckConfirmed').textContent=Number(s.confirmed||0).toLocaleString();$('recheckPrimaryNo').textContent=Number(s.rejectedPrimary||0).toLocaleString();$('recheckErrors').textContent=Number(s.errors||0).toLocaleString();

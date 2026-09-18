@@ -22,4 +22,8 @@ test('idle saved-hit recheck remains clickable and explains missing consent',asy
   assert.match(toastMessage,/consent box/);
   assert.equal($('recheckConsent').focused,true);
   assert.equal(consentHighlighted,true);
+  context.renderRecheck({status:'complete',busy:true});
+  assert.equal($('startRecheck').disabled,true);
+  context.renderRecheck({status:'complete',busy:false});
+  assert.equal($('startRecheck').disabled,false);
 });
