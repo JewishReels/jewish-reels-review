@@ -62,6 +62,32 @@ test('producer publishes complete cards without writing a classification',async 
  const{root,p}=await fixture(t);await p.run();const row=p.store.all('ready')[0],video=(await S.discover(root)).videos[0];assert.equal(p.store.counts().ready,1);assert.equal(video.cards.length,1);assert.equal(await S.exists(path.join(root,'chat_verdicts.json')),false);
  assert.equal(await S.exists(path.join(root,'.pipeline','media',row.id)),false);assert.equal(video.prepared.source_retired,true);assert.equal(typeof video.prepared.card_signature,'string');
 });
+test('an unchanged owned source is not hashed a second time during publication cleanup',async t=>{
+ const{p}=await fixture(t);const fingerprint=S.fingerprintVideo;let fullRechecks=0;
+ t.mock.method(S,'fingerprintVideo',async(...args)=>{fullRechecks++;return fingerprint(...args);});
+ await p.run();assert.equal(fullRechecks,0,'the SHA-256 calculated after download remains valid while file identity, size, and mtime are unchanged');
+});
+test('a source that changes during its initial hash is rehashed before it can be published or deduplicated',async t=>{
+ const url='https://example.org/a.mp4',{root,p}=await fixture(t,[url]),hashFile=S.hashFile;let calls=0;
+ t.mock.method(S,'hashFile',async file=>{const hash=await hashFile(file);if(++calls===1)await fs.appendFile(file,'-STABLE');return hash;});
+ await p.run();const row=p.store.all('ready')[0],receipt=await S.readJson(path.join(root,'.pipeline','receipts',row.id+'.json'));
+ assert.equal(calls,2);assert.equal(row.source_hash,S.sha(url+'-STABLE'));assert.equal(receipt.source_fingerprint,'mp4-sha256:'+S.sha(url+'-STABLE'));
+});
+test('a persistently changing source never publishes a receipt under an unstable hash',async t=>{
+ const{root,p}=await fixture(t),hashFile=S.hashFile;let paused=false;
+ t.mock.method(S,'hashFile',async file=>{const hash=await hashFile(file);await fs.appendFile(file,'X');return hash;});
+ p.on('state',()=>{if(!paused&&(p.store.counts().error||0)>0){paused=true;p.pause();}});
+ await p.run();const id=stableId('https://example.org/a.mp4');
+ assert.equal(p.state.status,'paused');assert.equal(p.store.get(id).status,'error');assert.match(p.store.get(id).error,/Source retry: Downloaded source changed/);
+ assert.equal(await S.exists(path.join(root,'frames',id)),false);assert.equal(await S.exists(path.join(root,'.pipeline','receipts',id+'.json')),false);
+});
+test('a source changed during extraction takes the conservative full verification path and is preserved',async t=>{
+ const fingerprint=S.fingerprintVideo;let fullRechecks=0;
+ const{root,p}=await fixture(t,undefined,{makeCards:async(file,folder)=>{await fs.appendFile(file,'CHANGED');await fs.mkdir(folder,{recursive:true});await fs.writeFile(path.join(folder,'card_000001.jpg'),'PIXELS');return{duration:3,fps:1,frame_count:3,card_count:1,cards:[{name:'card_000001.jpg',frames:3}]};}});
+ t.mock.method(S,'fingerprintVideo',async(...args)=>{fullRechecks++;return fingerprint(...args);});
+ await p.run();const row=p.store.all('ready')[0],receipt=await S.readJson(path.join(root,'frames',row.id,'prepared.json'));
+ assert.equal(fullRechecks,1);assert.equal(receipt.source_retired,undefined);assert.equal(await S.exists(path.join(root,'.pipeline','media',row.id,'source.mp4')),true);
+});
 test('failed extraction publishes nothing, keeps source and supports retry',async t=>{
  const{root,p}=await fixture(t,undefined,{makeCards:async()=>{throw new Error('Truncated video');}});await p.run();assert.equal(p.store.counts().error,1);assert.equal((await S.discover(root)).videos.length,0);assert.equal((await S.loadLedger(root)).entries.length,0);assert.equal(await S.exists(path.join(root,'.pipeline','media',stableId('https://example.org/a.mp4'),'source.mp4')),true);
 });
@@ -157,6 +183,13 @@ test('manual cleanup bypasses retry backoff and removes completed and disposable
  assert.equal(await S.exists(path.join(root,'.pipeline','media',pending.id)),false);
  assert.equal(result.bytes,result.state.bytes);
 });
+test('a transient publication cleanup lock is retried by ordinary maintenance',async t=>{
+ const{root,p}=await fixture(t),id=stableId('https://example.org/a.mp4'),target=path.resolve(root,'.pipeline','media',id),remove=fs.rm;let blocked=true;
+ t.mock.method(fs,'rm',async(file,...args)=>{if(blocked&&path.basename(file)===id&&path.basename(path.dirname(file))==='media'){blocked=false;throw Object.assign(new Error('Indexer lock'),{code:'EPERM'});}return remove(file,...args);});
+ await p.run();assert.equal(await S.exists(target),true);assert.ok(p.cleanupRetries.has(`published:${id}`));
+ t.mock.restoreAll();p.cleanupRetries.get(`published:${id}`).next=0;await p.syncVerdicts();
+ assert.equal(await S.exists(target),false);assert.equal(p.cleanupRetries.has(`published:${id}`),false);assert.equal(p.store.get(id).bytes,0);
+});
 
 test('real no-verdict cleanup during a disk scan preserves the ledger and allows more preparation',async t=>{
  const {root,p}=await fixture(t);await p.run();
@@ -215,10 +248,33 @@ test('taking a reel for review refills the reserve before a verdict or cleanup',
  assert.equal(p.store.counts().pending,1);
 });
 
-test('identical downloaded pixels from different URLs occupy one reserve slot',async t=>{
- const{p}=await fixture(t,['https://example.org/a.mp4','https://example.org/b.mp4'],{download:async(_r,folder)=>{const file=path.join(folder,'source.mp4');await fs.writeFile(file,'IDENTICAL SOURCE');return file;}});
- await p.run({buffer:3});assert.equal(p.state.status,'complete');assert.equal(p.store.counts().ready,2);
+test('identical downloaded pixels from different URLs extract once, share one owner, and retire the duplicate media',async t=>{
+ let downloads=0,extracts=0;
+ const{root,p}=await fixture(t,['https://example.org/a.mp4','https://example.org/b.mp4'],{
+  download:async(_r,folder)=>{downloads++;await new Promise(resolve=>setTimeout(resolve,20));const file=path.join(folder,'source.mp4');await fs.writeFile(file,'IDENTICAL SOURCE');return file;},
+  makeCards:async(_file,folder)=>{extracts++;await new Promise(resolve=>setTimeout(resolve,30));await fs.mkdir(folder,{recursive:true});await fs.writeFile(path.join(folder,'card_000001.jpg'),'PIXELS');return{duration:3,fps:1,frame_count:3,card_count:1,cards:[{name:'card_000001.jpg',frames:3}]};}
+ });
+ p.getReviewLoad=()=>({workers:128,videoConcurrency:2});
+ await p.run({buffer:3});const rows=p.store.all('ready'),owner=rows.find(row=>row.owner_id===row.id),alias=rows.find(row=>row.owner_id!==row.id);
+ assert.equal(p.state.status,'complete');assert.equal(rows.length,2);assert.equal(downloads,2);assert.equal(extracts,1);
+ assert.ok(owner);assert.ok(alias);assert.equal(alias.owner_id,owner.id);assert.equal(alias.source_hash,owner.source_hash);
+ const ownerReceipt=await S.readJson(path.join(root,'.pipeline','receipts',owner.id+'.json')),aliasReceipt=await S.readJson(path.join(root,'.pipeline','receipts',alias.id+'.json'));
+ assert.equal(ownerReceipt.shared_from,undefined);assert.equal(aliasReceipt.shared_from,owner.id);assert.equal(aliasReceipt.shared_basis,'identical downloaded source bytes and story range');
+ for(const row of rows)assert.equal(await S.exists(path.join(root,'.pipeline','media',row.id)),false,'published and duplicate source folders are retired');
  assert.equal(p.state.backlog.ahead_reels,1);assert.equal(p.state.backlog.ahead_frames,3);
+ const events=await fs.readFile(path.join(root,'logs','prepare_events.jsonl'),'utf8');assert.match(events,/"event":"source-content-reused"/);assert.match(events,/"event":"retired-shared-source"/);
+});
+test('an identical-content waiter publishes before the owner finishes source cleanup',async t=>{
+ const{p}=await fixture(t,['https://example.org/a.mp4','https://example.org/b.mp4'],{download:async(_r,folder)=>{const file=path.join(folder,'source.mp4');await fs.writeFile(file,'SAME BYTES');return file;}});
+ p.getReviewLoad=()=>({workers:128,videoConcurrency:2});
+ const retire=p._retirePublishedSource.bind(p);let releaseOwner,ownerWaiting=false,aliasReachedCleanup=false;
+ p._retirePublishedSource=async row=>{
+  if(row.owner_id===row.id&&!ownerWaiting){ownerWaiting=true;await new Promise(resolve=>{releaseOwner=resolve;});}
+  else if(row.owner_id!==row.id){aliasReachedCleanup=true;releaseOwner?.();}
+  return retire(row);
+ };
+ await Promise.race([p.run({buffer:3}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('content alias remained blocked behind owner cleanup')),3000))]);
+ assert.equal(aliasReachedCleanup,true);assert.equal(p.store.counts().ready,2);
 });
 
 test('reserve never counts completed hit or no assets as future image work',async t=>{
@@ -261,8 +317,10 @@ test('different stories in one MP4 get separate cards and identities; only ident
  await p.run({buffer:3});const [a,b,c]=p.store.all('ready');
  assert.equal(a.owner_id,a.id);assert.equal(b.owner_id,b.id);assert.equal(c.owner_id,a.id);assert.equal(p.backlog().ready_reels,2);
  assert.deepEqual(calls,['download',[0,3],'download',[3,6]]);
- const ra=await S.readJson(path.join(root,'.pipeline','receipts',a.id+'.json')),rb=await S.readJson(path.join(root,'.pipeline','receipts',b.id+'.json'));
- assert.notEqual(ra.source_fingerprint,rb.source_fingerprint);assert.equal(ra.scope,'segment');assert.equal(rb.segment_start,3);
+ assert.equal(calls.filter(Array.isArray).length,2,'identical source bytes with different story ranges must each be extracted');
+ const ra=await S.readJson(path.join(root,'.pipeline','receipts',a.id+'.json')),rb=await S.readJson(path.join(root,'.pipeline','receipts',b.id+'.json')),rc=await S.readJson(path.join(root,'.pipeline','receipts',c.id+'.json'));
+ assert.notEqual(ra.source_fingerprint,rb.source_fingerprint);assert.equal(ra.scope,'segment');assert.equal(rb.segment_start,3);assert.equal(rc.shared_from,a.id);
+ for(const row of [a,b,c])assert.equal(await S.exists(path.join(root,'.pipeline','media',row.id)),false);
 });
 
 test('distinct source downloads run concurrently instead of serializing preparation',async t=>{
@@ -279,9 +337,9 @@ test('high review concurrency prepares several independent videos at once',async
  const urls=Array.from({length:8},(_,i)=>`https://example.org/concurrent-${i}.mp4`),{p}=await fixture(t,urls,{
   makeCards:async(_file,folder)=>{active++;peak=Math.max(peak,active);try{await new Promise(r=>setTimeout(r,40));await fs.mkdir(folder,{recursive:true});await fs.writeFile(path.join(folder,'card_000001.jpg'),'PIXELS');return{duration:3,fps:1,frame_count:3,card_count:1,cards:[{name:'card_000001.jpg',frames:3}]};}finally{active--;}}
  });
- p.getReviewLoad=()=>({workers:64,videoConcurrency:16});
+ p.getReviewLoad=()=>({workers:64,videoConcurrency:16});p.parallelism=12;
  p.on('state',s=>{if(s.status==='buffered'&&p.store.counts().ready===8)p.pause();});
- await p.run({buffer:8});assert.ok(peak>1&&peak<=8,`peak preparation concurrency ${peak}`);assert.equal(p.store.counts().ready,8);
+ await p.run({buffer:8});assert.equal(peak,3,`FFmpeg extraction concurrency ${peak}`);assert.equal(p.state.sourceConcurrency,12);assert.equal(p.state.extractionConcurrency,3);assert.equal(p.store.counts().ready,8);
 });
 test('different segments of one source share its download while extracting concurrently',async t=>{
  let active=0,peak=0,downloads=0;
@@ -307,6 +365,17 @@ test('pause aborts an overlapped download and leaves unfinished rows pending',as
  await p.run({buffer:3});assert.equal(p.state.status,'paused');
  assert.equal(p.store.all('downloading').length,0);assert.equal(p.store.all('extracting').length,0);assert.equal(p.store.all('resolving').length,0);
  assert.ok((p.store.counts().pending||0)+(p.store.counts().ready||0)===2);
+});
+test('pause releases a downloaded source waiting for an FFmpeg permit',async t=>{
+ let downloaded=0,releaseDownloads;const bothDownloaded=new Promise(resolve=>{releaseDownloads=resolve;});
+ const{p}=await fixture(t,['https://example.org/a.mp4','https://example.org/b.mp4'],{
+  download:async(r,folder)=>{const file=path.join(folder,'source.mp4');await fs.writeFile(file,r.url);if(++downloaded===2)releaseDownloads();return file;},
+  makeCards:async(_file,folder)=>{await bothDownloaded;p.pause();await fs.mkdir(folder,{recursive:true});await fs.writeFile(path.join(folder,'card_000001.jpg'),'PIXELS');return{duration:3,fps:1,frame_count:3,card_count:1,cards:[{name:'card_000001.jpg',frames:3}]};}
+ });
+ p.parallelism=2;p.getReviewLoad=()=>({workers:128,videoConcurrency:2});
+ await Promise.race([p.run({buffer:3}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('paused FFmpeg waiter did not drain')),3000))]);
+ assert.equal(p.state.status,'paused');assert.equal(p.contentClaims.size,0);assert.equal(p.mediaClaims.size,0);assert.equal(p.sourceClaims.size,0);
+ assert.equal(p.store.all('extracting').length,0);assert.equal(p.store.all('downloading').length,0);
 });
 test('backfill maintains its reserve beyond every active video and protects their cards until settled',async t=>{
  const {root,p,counts}=await fixture(t,['https://example.org/one.mp4','https://example.org/two.mp4','https://example.org/three.mp4','https://example.org/four.mp4']);let active=[];

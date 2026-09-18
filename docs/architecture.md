@@ -34,7 +34,9 @@ The producer accepts imported collections or crawler output. Each row belongs to
 
 Fixed sampling captures one frame per second. Adaptive modes may examine two or four candidates per second and retain extra frames only when their pixels differ materially. Published cards contain whole sampled frames; classification can split large contact sheets into overlapping image regions to preserve readable detail.
 
-Preparation can overlap downloads and extraction across several videos while maintaining one durable owner for identical source pixels. Shared media may be reused only after source fingerprints and story boundaries match. A segment inside a long reel remains distinct from the whole reel and from other story ranges.
+Preparation uses separate limits for source work and FFmpeg work. Up to twelve independent sources may resolve, download, and hash concurrently, while the extraction limit follows available processors and never exceeds four. This keeps network waits overlapped without allowing a burst of multithreaded FFmpeg processes to make the desktop unresponsive. The limits also shrink automatically for a smaller review load or working-storage allowance.
+
+The producer maintains one durable owner for identical source pixels. Exact downloaded bytes and exact story boundaries may reuse an owner's published cards; a segment inside a long reel remains distinct from the whole reel and from other story ranges. The downloaded source is hashed once while its file identity is stable. Publication then verifies the generated cards and retires the unchanged owned source without rereading the entire MP4.
 
 ## Review
 
