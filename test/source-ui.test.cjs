@@ -26,10 +26,18 @@ test('saved-hit views use the workspace-wide hit collection while active review 
  assert.match(html,/ALL SOURCES/);
 });
 
-test('a full ready buffer still allows Scrapfly access to be entered and saved',()=>{
+test('Scrapfly access can be entered and saved in every preparation state',()=>{
  const app=fs.readFileSync(path.join(__dirname,'..','ui','app.js'),'utf8'),main=fs.readFileSync(path.join(__dirname,'..','main.cjs'),'utf8');
  assert.match(app,/\['scrapflyApiKey','rememberScrapflyKey'\]\)\$\(id\)\.disabled=false/);
- assert.match(app,/saveScrapflyKey'\)\.disabled=\['running','pausing','crawling'\]\.includes\(s\.status\)/);
- assert.match(main,/pipeline\.running&&pipeline\.state\.status!=='buffered'/);
- assert.match(main,/if\(pipeline\.running\)pipeline\.notifyWork\(\);else ensureBackfill\(\)/);
+ assert.match(app,/saveScrapflyKey'\)\.disabled=false/);
+ assert.doesNotMatch(main,/pipeline\.running&&pipeline\.state\.status!=='buffered'/);
+ assert.match(main,/if\(pipeline\.running\)pipeline\.notifyWork\(\);else if\(!crawlWorker\)ensureBackfill\(\)/);
+ assert.match(main,/safeStorage\.isEncryptionAvailable\(\).*scrapflySecret=normalized/s);
+});
+test('renderer preload exposes the preparation refresh used after reopening a workspace',()=>{
+ const preload=fs.readFileSync(path.join(__dirname,'..','preload.cjs'),'utf8');assert.match(preload,/['"]get-preparation['"]/);
+});
+test('active review errors stay source-scoped while storage keeps every manual hold protected',()=>{
+ const main=fs.readFileSync(path.join(__dirname,'..','main.cjs'),'utf8'),engine=fs.readFileSync(path.join(__dirname,'..','lib','engine.cjs'),'utf8');
+ assert.match(engine,/emit\('deferred-workspace', videos\)/);assert.match(main,/engine\.on\('deferred-workspace', items => pipeline\.setDeferredItems\(items\)\)/);assert.doesNotMatch(main,/pipeline\.setDeferredItems\(s\.deferred\)/);
 });

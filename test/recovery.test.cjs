@@ -111,6 +111,26 @@ test('a deferred source remains pending across restart and is retried when it be
   first.on('state',s=>{if(s.deferred?.length&&!first.pauseRequested)first.pause();});await run(first,root);assert.equal(first.state.status,'paused');
   const second=engine();await run(second,root);assert.equal(second.state.status,'complete');assert.equal((await S.loadLedger(root)).entries.length,1);assert.equal(second.state.deferred.length,0);
 });
+test('a source-scoped review preserves other-source deferred work without exposing or retrying it',async t=>{
+  const root=await fixture(t,['a','b']);
+  await S.atomicJson(path.join(root,'reelsight_manifest.json'),[{id:'a',source_key:'source-a'},{id:'b',source_key:'source-b'}]);
+  const inactive={id:'a',code:'INPUT_UNAVAILABLE',message:'Published cards do not match complete prepared coverage. Keeping this video pending.',attempts:4,next_retry_at:12345};
+  const active={id:'b',code:'PROVIDER_CONTENT_REJECTED',message:'Provider refused this image.',manual:true,next_retry_at:null};
+  await S.atomicJson(path.join(root,'logs','reelsight_deferred.json'),{version:1,videos:[inactive,active]});
+  let calls=0,workspaceDeferred=[];const e=engine({reviewer:async()=>{calls++;return no;}});e.on('deferred-workspace',items=>{workspaceDeferred=items;});
+  await e.run({root,key:'SIMULATION_ONLY',primary:model,budget:100,sourceKey:'source-b'});
+  assert.equal(calls,0);assert.equal(e.state.status,'attention');assert.deepEqual(e.state.deferred.map(v=>v.id),['b']);assert.equal(e.state.deferred[0].source_key,'source-b');
+  assert.deepEqual(workspaceDeferred.map(v=>v.id),['a','b']);
+  const saved=(await S.readJson(path.join(root,'logs','reelsight_deferred.json'))).videos;assert.deepEqual(saved[0],inactive);assert.deepEqual(saved.map(v=>v.id),['a','b']);
+});
+test('resolving active-source deferred work removes only that source journal row',async t=>{
+  const root=await fixture(t,['a','b']);await S.atomicJson(path.join(root,'reelsight_manifest.json'),[{id:'a',source_key:'source-a'},{id:'b',source_key:'source-b'}]);
+  const inactive={id:'a',code:'ENOENT',message:'Source A is waiting.',attempts:2,next_retry_at:0},active={id:'b',code:'ENOENT',message:'Source B is waiting.',attempts:1,next_retry_at:0};
+  await S.atomicJson(path.join(root,'logs','reelsight_deferred.json'),{version:1,videos:[inactive,active]});let calls=0,workspaceDeferred=[];
+  const e=engine({reviewer:async()=>{calls++;return no;}});e.on('deferred-workspace',items=>{workspaceDeferred=items;});await e.run({root,key:'SIMULATION_ONLY',primary:model,budget:100,sourceKey:'source-b'});
+  assert.equal(calls,1);assert.equal(e.state.status,'complete');assert.deepEqual(e.state.deferred,[]);assert.deepEqual(workspaceDeferred,[inactive]);
+  assert.deepEqual((await S.readJson(path.join(root,'logs','reelsight_deferred.json'))).videos,[inactive]);
+});
 test('a checkpoint write failure stops paid work and never gets mistaken for a bad input file',async t=>{
   const root=await fixture(t,['1','2']),atomic=S.atomicJson;let calls=0;
   t.mock.method(S,'atomicJson',(p,...args)=>p.endsWith('reelsight_checkpoint.json')?Promise.reject(error('EPERM',p)):atomic(p,...args));

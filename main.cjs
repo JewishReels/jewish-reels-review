@@ -61,11 +61,18 @@ async function projectCounts(p) {
   };
 }
 function projectProgress(p) { return { total: new Set([...p.videos, ...p.entries, ...p.issues].map(v => String(v.id))).size, done: p.entries.length, hits: p.entries.filter(e => e.verdict === 'jewish').length }; }
-async function projectDeferred(p) {
+async function workspaceDeferred(p) {
   const saved = await S.readJson(path.join(p.root,'logs','reelsight_deferred.json'), { version: 1, videos: [] });
   if (saved.version !== 1 || !Array.isArray(saved.videos)) throw new Error('Invalid deferred-work journal. Preserved for diagnosis.');
+  return saved.videos;
+}
+async function projectDeferred(p, workspace = null) {
+  const videos = workspace || await workspaceDeferred(p);
   const judged = new Set(p.entries.map(v => String(v.id)));
-  return [...new Map([...p.issues, ...saved.videos.filter(v => v.manual && !judged.has(String(v.id)))].map(v => [v.id,v])).values()];
+  const inScope = value => !p.sourceKey || (value?.source_key
+    ? value.source_key === p.sourceKey
+    : p.scopeIds?.has(String(value?.id)));
+  return [...new Map([...p.issues, ...videos.filter(v => v.manual && inScope(v) && !judged.has(String(v.id)))].map(v => [v.id,v])).values()];
 }
 function noRun() { if (engine.running || learner?.running || hitRecheck?.running || starting) throw new Error('Pause the current review, learning pass, or saved-hit recheck before changing projects or settings.'); }
 function activePolicy() { return Policy.compile(settings.criteria); }
@@ -104,7 +111,8 @@ async function openProject(folder) {
   pipeline.store.setActiveSource(settings.activeSource||null);pipeline.update({activeSource:settings.activeSource||null,sources:available,...(scrapflyRetried?{message:`Scrapfly access is configured. ${scrapflyRetried} rate-limited Footage Farm lookups were queued again.`}:{})});
   await engine.openWorkspace(project.root);
   hitRecheck?.info(project.root,activePolicy()).catch(error=>hitRecheck.update({status:'error',message:error.message}));
-  const deferred = await projectDeferred(project);
+  const allDeferred = await workspaceDeferred(project);pipeline.setDeferredItems(allDeferred);
+  const deferred = await projectDeferred(project,allDeferred);
   engine.update({ status: 'idle', message: project.videos.length ? 'Project ready. Select a model and start review.' : project.issues.length ? 'Some videos are waiting for file recovery. Start review to retry automatically.' : project.entries.length ? 'Previous reviews are saved. Start footage preparation for the next videos.' : 'No contact sheets found in this project.', ...projectProgress(project), deferred, current: null, cardsReviewed: 0, disagreements: 0 });
   await engine.live(project.root, { message: engine.state.message });
   ensureBackfill();
@@ -187,19 +195,21 @@ async function createWindow() {
   const changed = async () => {
     changeAgain=true;
     if(changeTask)return changeTask;
-    changeTask=(async()=>{do{changeAgain=false;await R.sleep(75);if(selectedProject){const p=await S.discover(selectedProject.root,{sourceKey:settings.activeSource||null});selectedProject=p;send('project-updated',await projectCounts(p));if(!engine.running)engine.update({...projectProgress(p),deferred:await projectDeferred(p)});}}while(changeAgain);})();
+    changeTask=(async()=>{do{changeAgain=false;await R.sleep(75);if(selectedProject){const p=await S.discover(selectedProject.root,{sourceKey:settings.activeSource||null});selectedProject=p;send('project-updated',await projectCounts(p));if(!engine.running){const allDeferred=await workspaceDeferred(p);pipeline.setDeferredItems(allDeferred);engine.update({...projectProgress(p),deferred:await projectDeferred(p,allDeferred)});}}}while(changeAgain);})();
     try{return await changeTask;}finally{changeTask=null;}
   };
   pipeline.on('ready', () => changed().catch(e => { pipeline.update({ message: `Queue refresh will retry: ${e.message}` }); R.logRecovery(pipeline.root, { event: 'queue-refresh-failed', error: e.message, error_code: e.code }).catch(()=>{}); }));
   let pendingReviewState={},pendingReviewDeferred,reviewStateTimer=null;
   const flushReviewState=()=>{if(reviewStateTimer){clearTimeout(reviewStateTimer);reviewStateTimer=null;}const value={...pendingReviewState,...(pendingReviewDeferred===undefined?{}:{deferred:pendingReviewDeferred})};pendingReviewState={};pendingReviewDeferred=undefined;send('review-state',value);};
   engine.on('state', s => {
-    if(Object.prototype.hasOwnProperty.call(s,'deferred')){pendingReviewDeferred=s.deferred;pipeline.setDeferredItems(s.deferred);}
+    if(Object.prototype.hasOwnProperty.call(s,'deferred'))pendingReviewDeferred=s.deferred;
     const {deferred,...light}=s;pendingReviewState=light;
     pipeline.setReviewIds(['running','pausing'].includes(s.status) ? (s.videos || []).map(v => v.id) : []);
     if(['paused','attention','complete','error'].includes(s.status))flushReviewState();
     else if(!reviewStateTimer)reviewStateTimer=setTimeout(flushReviewState,250);
-  }); engine.on('verdict', e => { F.load(selectedProject.root).then(journal => send('new-verdict', V.summaries([e], journal)[0])).catch(err=>engine.event(err.message,'warning')); });
+  });
+  engine.on('deferred-workspace', items => pipeline.setDeferredItems(items));
+  engine.on('verdict', e => { F.load(selectedProject.root).then(journal => send('new-verdict', V.summaries([e], journal)[0])).catch(err=>engine.event(err.message,'warning')); });
   // Cleanup must run after the review task releases its ID; an earlier verdict
   // event is intentionally skipped while that ID is still protected as active.
   // Settling is the one ordered synchronization point for both verdicts and
@@ -310,14 +320,15 @@ async function createWindow() {
   });
   handle('forget-key', async () => { noRun(); secret = ''; delete settings.encryptedKey; await persist(); return connectionStatus(); });
   handle('save-scrapfly-key', async ({key,remember}={}) => {
-    if(crawlWorker||(pipeline.running&&pipeline.state.status!=='buffered'))throw new Error('Wait for the ready buffer to fill, or pause footage preparation, before changing Scrapfly access.');
-    const normalized=Scrapfly.normalizedKey(key);if(!normalized)throw new Error('Enter a Scrapfly API key.');scrapflySecret=normalized;
+    const normalized=Scrapfly.normalizedKey(key);if(!normalized)throw new Error('Enter a Scrapfly API key.');
     if(remember&&!safeStorage.isEncryptionAvailable())throw new Error('Windows secure storage is unavailable. Turn off Remember to use the Scrapfly key for this session.');
-    if(remember)settings.encryptedScrapflyKey=safeStorage.encryptString(scrapflySecret).toString('base64');else delete settings.encryptedScrapflyKey;
-    await persist();const retried=pipeline.store?.retryScrapflyRequired()||0;
+    const encrypted=remember?safeStorage.encryptString(normalized).toString('base64'):null,previous=settings.encryptedScrapflyKey;
+    if(remember)settings.encryptedScrapflyKey=encrypted;else delete settings.encryptedScrapflyKey;
+    try{await persist();}catch(error){if(previous)settings.encryptedScrapflyKey=previous;else delete settings.encryptedScrapflyKey;throw error;}
+    scrapflySecret=normalized;const retried=pipeline.store?.retryScrapflyRequired()||0;
     if(retried){
       pipeline.update({message:`Scrapfly access saved. ${retried} rate-limited Footage Farm lookups were queued again.`});
-      if(pipeline.running)pipeline.notifyWork();else ensureBackfill();
+      if(pipeline.running)pipeline.notifyWork();else if(!crawlWorker)ensureBackfill();
     }
     return {...scrapflyStatus(),retried};
   });

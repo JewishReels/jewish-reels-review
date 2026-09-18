@@ -658,11 +658,10 @@ function renderPreparation(s){
   const pct=current.stage==='screening'?(current.total?current.screened/current.total*100:0):current.expected?Math.min(100,current.frames/current.expected*100):current.total?current.bytes/current.total*100:current.percent||0;
   $('preparePercent').textContent=current.id?`${Math.round(pct)}%`:'—';$('prepareFill').style.width=`${pct}%`;
   $('prepareDetail').textContent=current.id?current.stage==='screening'?`${current.id} · screening people locally${current.localWorkers?` · ${current.localWorkers} local workers`:''}${current.parallelVideos>1?` · ${current.parallelVideos} videos in preparation`:''} · ${current.screened||0} / ${current.total||0} frames · ${current.selected||0} selected`:`${current.id} · ${current.stage}${current.frames?` · ${current.frames.toLocaleString()} / ${current.expected.toLocaleString()} frames`:current.bytes?` · ${bytesLabel(current.bytes)} downloaded`:''}`:'Preparation runs independently of the model connection.';
-  // Let the user enter Scrapfly access at any time and save it while the ready
-  // reserve is full. Buffered preparation has no active source job, and the
-  // resolver reads the new key before its next metadata request.
+  // The resolver reads the latest Scrapfly key before each metadata request,
+  // so access can be saved without interrupting preparation or crawling.
   for(const id of ['scrapflyApiKey','rememberScrapflyKey'])$(id).disabled=false;
-  $('saveScrapflyKey').disabled=['running','pausing','crawling'].includes(s.status);
+  $('saveScrapflyKey').disabled=false;
   const mediaAccessBusy=['running','buffered','pausing','crawling'].includes(s.status);
   $('forgetScrapflyKey').disabled=mediaAccessBusy;
   for(const id of ['vimeoAccessMode','vimeoProfile','chooseVimeoCookies','saveVimeoAccess'])$(id).disabled=mediaAccessBusy;

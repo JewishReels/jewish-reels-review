@@ -22,6 +22,29 @@ test('corrected Footage Farm crawl preserves work by canonical URL and drops emp
 });
 test('Footage Farm parser finds public catalog hierarchy and stable numeric reels',()=>{const html='<a href="https://footagefarm.com/subthemes/wwi/trenches">X</a><a href="https://footagefarm.com/reel-details/wwi/trenches/a-reel">A</a><span data-url="https://footagefarm.com/reel-details/123/10"></span>';assert.deepEqual(F.links(html,new RegExp('^/subthemes/[^/]+/[^/]+$')),['https://footagefarm.com/subthemes/wwi/trenches']);assert.deepEqual(F.links(html,new RegExp('^/reel-details/\\d+/\\d+$')),['https://footagefarm.com/reel-details/123/10']);});
 test('selected source scopes active work while saved hits remain visible workspace-wide',async()=>{const root=await fs.mkdtemp(path.join(os.tmpdir(),'source-view-'));await fs.mkdir(path.join(root,'frames','a','cards'),{recursive:true});await fs.mkdir(path.join(root,'frames','b','cards'),{recursive:true});await fs.writeFile(path.join(root,'frames','a','cards','card_1.jpg'),'a');await fs.writeFile(path.join(root,'frames','b','cards','card_1.jpg'),'b');await fs.writeFile(path.join(root,'reelsight_manifest.json'),JSON.stringify([{id:'a',source_key:'source-a'},{id:'b',source_key:'source-b'}]));await fs.writeFile(path.join(root,'chat_verdicts.json'),JSON.stringify([{id:'done-a',source_key:'source-a',verdict:'jewish'},{id:'done-b',source_key:'source-b',verdict:'jewish'},{id:'no-a',source_key:'source-a',verdict:'no'}]));const view=await S.discover(root,{sourceKey:'source-b'});assert.deepEqual(view.videos.map(v=>v.id),['b']);assert.deepEqual(view.entries.map(v=>v.id),['done-b']);assert.deepEqual(view.workspaceHits.map(v=>v.id),['done-a','done-b']);});
+test('selected source ignores incomplete published cards owned by another source',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'source-coverage-')),token='source-owner';t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ await fs.mkdir(path.join(root,'.pipeline'),{recursive:true});await fs.writeFile(path.join(root,'.pipeline','owner.json'),JSON.stringify({token}));
+ const rows=[['a','source-a',false],['b','source-b',true]];
+ for(const[id,source_key,complete]of rows){
+  const cards=path.join(root,'frames',id,'cards');await fs.mkdir(cards,{recursive:true});
+  if(complete)await fs.writeFile(path.join(cards,'card_1.jpg'),id);
+  const receipt={id,token,source_key,scope:'whole-reel',source_fingerprint:`mp4-sha256:${id}`,cards:[{name:'card_1.jpg'}],card_count:1};
+  await fs.writeFile(path.join(root,'frames',id,'prepared.json'),JSON.stringify(receipt));
+  await fs.writeFile(path.join(root,'frames',id,'.reelsight-owned.json'),JSON.stringify({token,relative:`frames/${id}`}));
+ }
+ await fs.writeFile(path.join(root,'reelsight_manifest.json'),JSON.stringify(rows.map(([id,source_key])=>({id,source_key}))));
+ const sourceB=await S.discover(root,{sourceKey:'source-b'});assert.deepEqual(sourceB.videos.map(v=>v.id),['b']);assert.deepEqual(sourceB.issues,[]);assert.deepEqual([...sourceB.scopeIds],['b']);
+ const sourceA=await S.discover(root,{sourceKey:'source-a'});assert.deepEqual(sourceA.videos,[]);assert.equal(sourceA.issues.length,1);assert.equal(sourceA.issues[0].id,'a');assert.equal(sourceA.issues[0].source_key,'source-a');assert.match(sourceA.issues[0].message,/coverage/);
+});
+test('receipt-only source membership retains an active-source coverage error',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'receipt-source-')),id='receipt-only',token='source-owner';t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const cards=path.join(root,'frames',id,'cards');await fs.mkdir(cards,{recursive:true});await fs.mkdir(path.join(root,'.pipeline'),{recursive:true});
+ await fs.writeFile(path.join(root,'.pipeline','owner.json'),JSON.stringify({token}));await fs.writeFile(path.join(root,'frames',id,'.reelsight-owned.json'),JSON.stringify({token,relative:`frames/${id}`}));
+ await fs.writeFile(path.join(root,'frames',id,'prepared.json'),JSON.stringify({id,token,source_key:'source-b',scope:'whole-reel',source_fingerprint:'mp4-sha256:receipt-only',cards:[{name:'card_1.jpg'}],card_count:1}));
+ const sourceB=await S.discover(root,{sourceKey:'source-b'});assert.deepEqual(sourceB.videos,[]);assert.equal(sourceB.issues.length,1);assert.equal(sourceB.issues[0].id,id);assert.equal(sourceB.issues[0].source_key,'source-b');
+ const sourceA=await S.discover(root,{sourceKey:'source-a'});assert.deepEqual(sourceA.issues,[]);
+});
 test('improved Footage Farm resolver retries old failures and separates unavailable previews',async()=>{const root=await fs.mkdtemp(path.join(os.tmpdir(),'ff-retry-')),file=path.join(root,'ff.json');await fs.writeFile(file,JSON.stringify({items:[{id:1,url:'https://footagefarm.com/reel-details/a/b/c'},{id:2,url:'https://footagefarm.com/reel-details/a/b/d'},{id:3,url:'https://footagefarm.com/reel-details/a/b/e'}]}));const q=new QueueStore(root);q.import(file,{sourceKey:'footagefarm',label:'Footage Farm'});for(const row of q.db.prepare('select id from items order by id').all())q.update(row.id,{status:'error',error:row.id==='ff-1'?'yt-dlp.exe failed: Unsupported URL: https://footagefarm.com/x':row.id==='ff-2'?'fetch failed':'PREVIEW_UNAVAILABLE: Footage Farm has no online screener'});assert.equal(q.classifyPreviewUnavailable(),1);assert.equal(q.retryLegacyFootageFarmFailures(),2);assert.deepEqual(q.db.prepare('select status from items order by id').all().map(x=>x.status),['pending','pending','unavailable']);q.close();});
 test('verified Vimeo resolver migration requeues unavailable Footage Farm rows exactly once',async t=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'ff-vimeo-retry-')),file=path.join(root,'ff.json');await fs.writeFile(file,JSON.stringify({items:[{id:1,url:'https://footagefarm.com/reel-details/a/b/c'},{id:2,url:'https://example.org/two'}]}));
