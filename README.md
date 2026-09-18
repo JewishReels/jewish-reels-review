@@ -114,7 +114,7 @@ Contact sheets contain whole sampled frames. Large sheets can later be divided i
 
 *The live preparation dashboard keeps the selected source, frame settings, ready buffer, storage allowance, queue totals, and current activity in one view. This workspace contains 19,035 Footage Farm URLs and keeps preparation moving while completed cards are reviewed.*
 
-The **ready buffer** controls how much prepared work should stay ahead of the model reviewer. The storage limit controls managed downloads, staging files, and retained cards. Preparation can continue automatically while the application is open, or it can be paused independently of visual review.
+The **ready buffer** controls how much prepared work should stay ahead of the model reviewer. The working-storage limit controls managed downloads, staging files, and cards still eligible for automatic processing. Confirmed-hit evidence and manual-review holds are measured separately. Preparation can continue automatically while the application is open, or it can be paused independently of visual review.
 
 ## 3. Screen the prepared footage
 
@@ -304,7 +304,7 @@ Cleanup follows the evidence state:
 - A manual-hold item keeps its cards for deliberate inspection.
 - Queue records, receipts, verdicts, feedback, and audit logs remain after disposable media is removed.
 
-The storage guard counts managed downloads, staging data, and retained cards. It maintains a minimum free-space reserve and avoids double-counting hard-linked source data. When the configured allowance is full, preparation waits for safely disposable media to be cleaned. Durable hit evidence and manual holds are not erased merely to make room.
+The configurable storage guard counts managed downloads, staging data, and cards still eligible for automatic processing. Confirmed-hit evidence and explicit manual-review holds do not consume that working allowance, because automatic cleanup cannot erase them. A separate real-drive free-space guard still pauses preparation before the disk becomes critically full, and hard-linked source data is counted only once.
 
 The **Clean up media** action follows the same conservative rules as automatic cleanup. It does not delete evidence that still supports a hit, unfinished work, or a manual-review item.
 
