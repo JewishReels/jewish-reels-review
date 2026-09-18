@@ -54,6 +54,8 @@ Open **Connection & settings** and enter an OpenRouter API key.
 
 Never add a key to source files, fixtures, screenshots, issues, or logs. Revoke a credential immediately if it is exposed.
 
+For Footage Farm records that exist only on its official Vimeo account, the same settings screen can use a signed-in Edge or Chrome profile, or an exported Netscape cookies file. This is optional for ordinary Footage Farm progressive screeners. The app stores the selected profile or file path, not cookie contents, and uses it only after the Footage Farm account, reel number, and duration have been verified.
+
 ## First run
 
 1. Select or create a source from the source control on the right side of the application.

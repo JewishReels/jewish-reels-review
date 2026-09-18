@@ -16,6 +16,7 @@ const {makeLearningImages} = require('./lib/learning-images.cjs');
 const {HitRecheck} = require('./lib/hit-recheck.cjs');
 const Policy = require('./lib/policy.cjs');
 const V = require('./lib/result-view.cjs');
+const VimeoAuth = require('./lib/vimeo-auth.cjs');
 const sharp = require('sharp');
 
 const testMode = process.env.REELSIGHT_TEST === '1';
@@ -36,6 +37,10 @@ async function persist() {
   return persistWrites;
 }
 function connectionStatus() { return { configured: !!secret, remembered: !!settings.encryptedKey, environment: !!process.env.OPENROUTER_API_KEY }; }
+function vimeoAccessStatus() {
+  try { return VimeoAuth.publicVimeoAuth(settings.vimeoAuth); }
+  catch { return { mode: 'none', configured: false }; }
+}
 async function projectCounts(p) { const feedback = await F.load(p.root),active=F.active(feedback); return { root: p.root, videoCount: p.videos.length + p.issues.length, cardCount: p.videos.reduce((n,v) => n + v.cards.length, 0), entries: V.summaries(p.entries, feedback), feedback: { active: active.length, confirmed: active.filter(e=>e.action==='confirmed_hit').length, false: active.filter(e=>e.action==='false_hit').length, checks: F.context(feedback).reasons.length } }; }
 function projectProgress(p) { return { total: new Set([...p.videos, ...p.entries, ...p.issues].map(v => String(v.id))).size, done: p.entries.length, hits: p.entries.filter(e => e.verdict === 'jewish').length }; }
 async function projectDeferred(p) {
@@ -65,6 +70,11 @@ async function openProject(folder) {
   let project = await S.discover(folder,{sourceKey:settings.activeSource||null});
   matchImageCache.clear(); selectedProject = project; settings.folder = project.root; await persist();
   await pipeline.open(project.root);
+  // Opening the queue may quarantine a legacy source association and
+  // supersede its verdict. Rediscover after those durable migrations so the
+  // renderer never continues with the pre-migration completion snapshot.
+  project = await S.discover(project.root,{sourceKey:settings.activeSource||null});
+  selectedProject = project;
   const available=pipeline.store.sourcesList();
   if(settings.activeSource&&!available.some(s=>s.key===settings.activeSource)){delete settings.activeSource;project=await S.discover(folder);}
   if(!settings.activeSource&&available.length===1){settings.activeSource=available[0].key;project=await S.discover(folder,{sourceKey:settings.activeSource});await persist();}
@@ -142,7 +152,7 @@ async function createWindow() {
   learner.on('finished', () => send('learning-updated',true));
   hitRecheck.on('state', s => send('hit-recheck-state',s));
   const bin = app.isPackaged ? path.join(process.resourcesPath, 'media-tools') : path.resolve(__dirname, '../package-resources/media-tools');
-  pipeline = new PreparationPipeline({ getReviewLoad:()=>({workers:settings.workers??4,videoConcurrency:settings.videoConcurrency??4}), tools: { ffmpeg: path.join(bin,'ffmpeg.exe'), ffprobe: path.join(bin,'ffprobe.exe'), ytdlp: path.join(bin,'yt-dlp.exe') } });
+  pipeline = new PreparationPipeline({ getReviewLoad:()=>({workers:settings.workers??4,videoConcurrency:settings.videoConcurrency??4}), tools: { ffmpeg: path.join(bin,'ffmpeg.exe'), ffprobe: path.join(bin,'ffprobe.exe'), ytdlp: path.join(bin,'yt-dlp.exe'), getVimeoAuth:()=>VimeoAuth.normalizeVimeoAuth(settings.vimeoAuth) } });
   let pendingPrepareState=null,prepareStateTimer=null;
   const flushPrepareState=()=>{prepareStateTimer=null;if(pendingPrepareState){const value=pendingPrepareState;pendingPrepareState=null;send('prepare-state',value);}};
   pipeline.on('state', s => { pendingPrepareState=s;if(!prepareStateTimer)prepareStateTimer=setTimeout(flushPrepareState,250); });
@@ -183,7 +193,7 @@ async function createWindow() {
       else { e.preventDefault(); if(engine.running) engine.pause(); if(learner.running)learner.pause(); if(hitRecheck.running)hitRecheck.pause(); if(pipeline.running) pipeline.pause(); const check = setInterval(() => { if (!engine.running && !pipeline.running && !learner.running && !hitRecheck.running) { clearInterval(check); win.destroy(); app.quit(); } }, 250); }
     }
   });
-  handle('bootstrap', async () => ({ settings: { folder: settings.folder, activeSource:settings.activeSource, primary: settings.primary, secondary: settings.secondary, verification: settings.verification ?? true, verificationMode: settings.verificationMode || 'positives', detail: settings.detail ?? true, budget: settings.budget || 10, workers: settings.workers ?? 4, videoConcurrency: settings.videoConcurrency ?? 4, dispatchMode: settings.dispatchMode || 'one-at-a-time', recheckBudget:settings.recheckBudget||10, recheckWorkers:settings.recheckWorkers||16, autoBackfill: settings.autoBackfill, preparation: settings.preparation }, connection: connectionStatus(), state: engine.snapshot(), recheck:hitRecheck.snapshot(), preparation: pipeline.snapshot(), sources: await detectSources(app.getPath('documents')), version: app.getVersion(), criteria: criteriaView() }));
+  handle('bootstrap', async () => ({ settings: { folder: settings.folder, activeSource:settings.activeSource, primary: settings.primary, secondary: settings.secondary, verification: settings.verification ?? true, verificationMode: settings.verificationMode || 'positives', detail: settings.detail ?? true, budget: settings.budget || 10, workers: settings.workers ?? 4, videoConcurrency: settings.videoConcurrency ?? 4, dispatchMode: settings.dispatchMode || 'one-at-a-time', recheckBudget:settings.recheckBudget||10, recheckWorkers:settings.recheckWorkers||16, autoBackfill: settings.autoBackfill, preparation: settings.preparation, vimeoAccess:vimeoAccessStatus() }, connection: connectionStatus(), state: engine.snapshot(), recheck:hitRecheck.snapshot(), preparation: pipeline.snapshot(), sources: await detectSources(app.getPath('documents')), version: app.getVersion(), criteria: criteriaView() }));
   handle('get-criteria', () => criteriaView());
   handle('save-criteria', async document => {
     settings.criteria = Policy.mergeExistingLearnedRules(document).document;
@@ -261,6 +271,26 @@ async function createWindow() {
     await persist(); return connectionStatus();
   });
   handle('forget-key', async () => { noRun(); secret = ''; delete settings.encryptedKey; await persist(); return connectionStatus(); });
+  handle('choose-vimeo-cookies', async () => {
+    if (pipeline.running || crawlWorker) throw new Error('Pause footage preparation before changing Vimeo access.');
+    const choice=await dialog.showOpenDialog(win,{title:'Choose exported Vimeo cookies',properties:['openFile'],filters:[{name:'Netscape cookies file',extensions:['txt']},{name:'All files',extensions:['*']}]});
+    if(choice.canceled)return {...vimeoAccessStatus(),canceled:true};
+    const file=choice.filePaths[0],stat=await fs.stat(file);
+    if(!stat.isFile()||stat.size>20*1024*1024)throw new Error('Choose a cookies text file smaller than 20 MB.');
+    const header=(await fs.readFile(file,'utf8')).replace(/^\uFEFF/,'').slice(0,200);
+    if(!/^# (?:Netscape )?HTTP Cookie File\b/i.test(header))throw new Error('Choose a Netscape-format cookies file. Its first line must identify it as an HTTP Cookie File.');
+    settings.vimeoAuth=VimeoAuth.normalizeVimeoAuth({mode:'cookies-file',path:file});
+    await persist();return vimeoAccessStatus();
+  });
+  handle('save-vimeo-access', async ({mode,browser,profile}={}) => {
+    if (pipeline.running || crawlWorker) throw new Error('Pause footage preparation before changing Vimeo access.');
+    if(mode==='cookies-file'){
+      if(settings.vimeoAuth?.mode!=='cookies-file')throw new Error('Choose a cookies file first.');
+    }else settings.vimeoAuth=VimeoAuth.normalizeVimeoAuth(mode==='browser'?{mode,browser,profile}:{mode:'none'});
+    await persist();const status=vimeoAccessStatus(),retried=status.configured?pipeline.store?.retryVimeoAuthenticationRequired()||0:0;
+    if(retried){pipeline.update({message:`Vimeo access saved. ${retried} verified Footage Farm screeners were queued again.`});ensureBackfill();}
+    return {...status,retried};
+  });
   handle('start-review', async options => {
     // A stale renderer can submit Start again while a large workspace is still
     // being opened. The requested work already exists, so resynchronize the UI

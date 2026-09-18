@@ -39,3 +39,4 @@
 .match-hit-nav{display:grid;grid-template-columns:150px 1fr 150px;align-items:center;gap:12px;padding:8px 18px;border-top:1px solid #d9e1d6;border-bottom:1px solid #d9e1d6;background:#f5f7f1}.match-hit-nav>div{text-align:center;min-width:0}.match-hit-nav strong,.match-hit-nav span{display:block}.match-hit-nav strong{font-size:12px;color:#294737}.match-hit-nav span{font-size:10px;color:#68786d;margin-top:2px}.match-hit-nav[hidden]{display:none}
 @media(max-width:1180px){.match-review-body{grid-template-columns:minmax(0,1fr) 310px}.match-review-nav{grid-template-columns:130px 1fr 130px}.match-review-nav .button{padding-left:10px;padding-right:10px}}
 .pill.stage-unavailable{color:#8a6b38;background:#fff7df}
+.vimeo-cookie-row{display:flex;align-items:center;gap:12px;margin:12px 0}.vimeo-cookie-row>span{overflow-wrap:anywhere}.vimeo-profile[hidden]{display:none}

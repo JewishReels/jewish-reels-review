@@ -1,0 +1,30 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {QueueStore}=require('../lib/queue.cjs');
+const {PreparationPipeline}=require('../lib/pipeline.cjs');
+const S=require('../lib/storage.cjs');
+
+test('legacy bare Vimeo fallback is quarantined, superseded, and queued for corrected recovery',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'ff-legacy-media-')),source=path.join(root,'footagefarm.json');
+ await fs.mkdir(path.join(root,'frames','ff-1','cards'),{recursive:true});
+ await fs.mkdir(path.join(root,'.pipeline','receipts'),{recursive:true});
+ await fs.writeFile(path.join(root,'frames','ff-1','cards','card_000001.jpg'),'wrong pixels');
+ await fs.writeFile(path.join(root,'frames','ff-1','prepared.json'),'{}');
+ await fs.writeFile(path.join(root,'.pipeline','receipts','ff-1.json'),'{}');
+ await fs.writeFile(source,JSON.stringify({items:[{id:1,url:'https://footagefarm.com/reel-details/theme/sub/reel-one',title:'Reel one'}]}));
+ const queue=new QueueStore(root);queue.import(source,{sourceKey:'footagefarm',kind:'crawled'});
+ queue.update('ff-1',{status:'hit',attempts:1,media_url:'https://player.vimeo.com/video/212093923',media_key:'legacy-key',source_hash:'wrong-hash',owner_id:'ff-1',duration:20,frame_count:20,card_count:1,bytes:100});queue.close();
+ await fs.writeFile(path.join(root,'chat_verdicts.json'),JSON.stringify([{id:'ff-1',verdict:'jewish',source_fingerprint:'mp4-sha256:wrong-hash'}]));
+ const pipeline=new PreparationPipeline({tools:{}});t.after(async()=>{pipeline.store?.close();await fs.rm(root,{recursive:true,force:true});});
+ await pipeline.open(root);
+ const row=pipeline.store.get('ff-1');assert.equal(row.status,'pending');assert.equal(row.attempts,0);assert.equal(row.media_url,null);assert.equal(row.source_hash,null);assert.equal(row.card_count,null);
+ const ledger=await S.loadLedger(root);assert.equal(ledger.entries.length,0);assert.equal(ledger.history.length,1);assert.match(ledger.history[0].superseded_at,/^\d{4}-/);
+ const quarantine=path.join(root,'.pipeline','quarantine','footagefarm-related-vimeo-v1');
+ assert.equal(await S.exists(path.join(quarantine,'frames','ff-1','cards','card_000001.jpg')),true);
+ assert.equal(await S.exists(path.join(quarantine,'.pipeline','receipts','ff-1.json')),true);
+ assert.equal(await S.exists(path.join(root,'frames','ff-1')),false);
+ assert.ok(pipeline.store.migration('footagefarm-related-vimeo-v1'));
+});

@@ -14,6 +14,8 @@ The source selector limits the active pipeline to one collection without deletin
 
 Crawler boundaries should stay on the selected website. Review the discovered URLs before starting a large preparation run. Source titles and URLs remain local metadata and do not enter ordinary classification prompts.
 
+Footage Farm pages are resolved in two stages. The app first uses the page's advertised progressive screener files. If no usable file is present, it considers a video from Footage Farm's official Vimeo account only when the reel number is an exact title match, the account identity is official, the duration agrees, and exactly one candidate passes those checks. Vimeo currently requires an authenticated session for these downloads. Configure **Footage Farm Vimeo access** under **Connection & settings** with a signed-in Edge or Chrome profile, or an exported Netscape cookies file. Close the selected browser if Windows reports that its cookie database is locked.
+
 ## Prepare footage
 
 Preparation resolves playable media, downloads or normalizes it, probes timing, samples frames, builds timestamped contact sheets, validates coverage, and then publishes the finished card set atomically.

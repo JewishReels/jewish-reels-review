@@ -91,6 +91,18 @@ test('a source changed during extraction takes the conservative full verificatio
 test('failed extraction publishes nothing, keeps source and supports retry',async t=>{
  const{root,p}=await fixture(t,undefined,{makeCards:async()=>{throw new Error('Truncated video');}});await p.run();assert.equal(p.store.counts().error,1);assert.equal((await S.discover(root)).videos.length,0);assert.equal((await S.loadLedger(root)).entries.length,0);assert.equal(await S.exists(path.join(root,'.pipeline','media',stableId('https://example.org/a.mp4'),'source.mp4')),true);
 });
+test('corrupt Footage Farm renditions are discarded before the full structured fallback is prepared',async t=>{
+ const high='https://player.vimeo.com/progressive_redirect/download/7/high.mp4',low='https://player.vimeo.com/progressive_redirect/download/7/low.mp4',vimeo='https://vimeo.com/210456270',downloads=[],extractions=[];
+ const{root,p}=await fixture(t,undefined,{
+  resolveMedia:async()=>({url:high,alternates:[{url:low,direct:true,provider:'footagefarm'},{url:vimeo,direct:false,provider:'footagefarm-vimeo'}],direct:true,provider:'footagefarm',scope:'whole-reel'}),
+  download:async(r,folder)=>{downloads.push([r.url,r.provider,r.direct]);const file=path.join(folder,'source.mp4');await fs.writeFile(file,r.url);return file;},
+  makeCards:async(file,folder)=>{const source=await fs.readFile(file,'utf8');extractions.push(source);await fs.mkdir(folder,{recursive:true});await fs.writeFile(path.join(folder,'card_000001.jpg'),source===vimeo?'GOOD':'PARTIAL');if(source!==vimeo)throw Object.assign(new Error('Invalid NAL unit size (1703530951 > 19825). Error splitting the input into NAL units.'),{mediaCorrupt:true});return{duration:3,fps:1,frame_count:3,card_count:1,cards:[{name:'card_000001.jpg',frames:3}]};}
+ });
+ await p.run();const row=p.store.all('ready')[0],receipt=await S.readJson(path.join(root,'frames',row.id,'prepared.json'));
+ assert.deepEqual(downloads,[[high,'footagefarm',true],[low,'footagefarm',true],[vimeo,'footagefarm-vimeo',false]]);assert.deepEqual(extractions,[high,low,vimeo]);assert.equal(row.attempts,1);assert.equal(row.media_url,vimeo);assert.equal(row.source_hash,S.sha(vimeo));assert.equal(receipt.media_url,vimeo);
+ assert.equal(await fs.readFile(path.join(root,'frames',row.id,'cards','card_000001.jpg'),'utf8'),'GOOD');
+ const events=await fs.readFile(path.join(root,'logs','prepare_events.jsonl'),'utf8');assert.equal((events.match(/"event":"corrupt-rendition-retried"/g)||[]).length,2);
+});
 test('records without a public preview are separated from actionable source errors',async t=>{
  const unavailable=Object.assign(new Error('PREVIEW_UNAVAILABLE: Request Preview on the source page.'),{code:'PREVIEW_UNAVAILABLE'});
  const{p}=await fixture(t,undefined,{resolveMedia:async()=>{throw unavailable;}});await p.run();assert.equal(p.store.counts().unavailable,1);assert.equal(p.store.counts().error||0,0);
