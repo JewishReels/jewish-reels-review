@@ -9,12 +9,12 @@
 </p>
 
 <p align="center">
-  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.54 · Windows 10 and 11
+  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.55 · Windows 10 and 11
 </p>
 
 ![Jewish Reels displaying a real saved match, its source contact sheet, highlighted visual evidence, and model explanation](docs/screenshots/03-review-match-live.png)
 
-*A real match in the current 2.4.54 workspace. The full contact sheet, highlighted region, selected cue, model explanation, source details, and hit-by-hit navigation remain together for human verification.*
+*A real match captured in the 2.4.54 workspace. The full contact sheet, highlighted region, selected cue, model explanation, source details, and hit-by-hit navigation remain together for human verification.*
 
 Archival catalogs describe whole reels, but the useful evidence inside a reel may last only a few seconds. A person wearing a kippah, a tallit in a crowd, Hebrew lettering on a ship, a Star of David on a storefront, or a Jewish ritual object may never appear in the catalog title. Watching every reel from beginning to end is often impractical.
 
@@ -323,7 +323,7 @@ Text visible inside a frame remains part of the image and therefore travels with
 
 An OpenRouter key can remain in memory for the current session, come from the `OPENROUTER_API_KEY` environment variable, or be encrypted by Electron for the current Windows account. Preparation works without a model key. Visual review, feedback rebuilding, and saved-hit troubleshooting require a configured model connection.
 
-The screenshots in this README come from the current 2.4.54 workspace. They show real queue counts, source names, models, provider states, local paths, and archival contact sheets rather than a synthetic demonstration fixture.
+The screenshots in this README were captured from the 2.4.54 workspace. They show real queue counts, source names, models, provider states, local paths, and archival contact sheets rather than a synthetic demonstration fixture.
 
 ## Common ways to use Jewish Reels
 

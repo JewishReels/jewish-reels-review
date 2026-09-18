@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {preparationReserve}=require('../lib/preparation-reserve.cjs');
-const {admissionReserveBytes}=require('../lib/pipeline.cjs');
+const {admissionReserveBytes,guardedBytes}=require('../lib/pipeline.cjs');
 test('64 request workers maintain 32 clips ahead in addition to active reviews',()=>{
  assert.equal(preparationReserve(3,{workers:64,videoConcurrency:16}),32);
  assert.equal(preparationReserve(10,{workers:64,videoConcurrency:8}),32);
@@ -18,4 +18,8 @@ test('storage admission reserves 256 MiB per active preparation plus publication
  assert.equal(admissionReserveBytes(1),512*1024*1024);
  assert.equal(admissionReserveBytes(8),9*256*1024*1024);
  assert.equal(admissionReserveBytes(128),9*256*1024*1024);
+});
+test('storage admission uses the reclaimable working set rather than retained evidence',()=>{
+ assert.equal(guardedBytes({bytes:19*1024**3,guardBytes:64*1024**2}),64*1024**2);
+ assert.equal(guardedBytes({bytes:123}),123,'older snapshots remain compatible');
 });

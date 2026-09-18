@@ -50,9 +50,9 @@ Clearing troubleshooting removes only its scores and checkpoints. It does not de
 
 ## Storage and cleanup
 
-The storage limit covers managed downloads, staging files, and cards. A downloaded source video is temporary: after complete cards are published, Jewish Reels records the source identity plus a signature of those exact card bytes, then deletes the source. Review verifies that signature before trusting the saved source identity. A hit retains only its evidence/contact-sheet card set; a complete no-hit deletes its generated cards after the verdict and coverage receipt agree. Queue rows, receipts, verdicts, and audit logs remain.
+The working-storage limit covers managed downloads, staging files, and cards still eligible for automatic processing. A downloaded source video is temporary: after complete cards are published, Jewish Reels records the source identity plus a signature of those exact card bytes, then deletes the source. Review verifies that signature before trusting the saved source identity. A hit retains only its evidence/contact-sheet card set; a complete no-hit deletes its generated cards after the verdict and coverage receipt agree. Queue rows, receipts, verdicts, and audit logs remain.
 
-Hit cards, unfinished cards, and manual-hold cards remain available for inspection and can fill the configured storage allowance. They require deliberate review or archiving; the storage guard and **Clean up media** button do not erase durable cards automatically.
+Confirmed-hit cards and explicit manual-review holds remain available for inspection and do not consume the working-storage allowance. The dashboard reports them separately as retained evidence. Jewish Reels still watches real drive free space and pauses before the disk becomes critically full. **Clean up media** never erases retained evidence automatically.
 
 ## Diagnose a problem
 

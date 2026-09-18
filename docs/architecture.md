@@ -91,9 +91,9 @@ Jewish Reels distinguishes failures by the action that can resolve them:
 
 ## Storage guard
 
-The configured limit covers managed downloads, staging data, and retained cards. The guard also maintains a minimum free-space reserve and counts NTFS hard-linked source data only once. Once complete cards are atomically published, preparation writes the source fingerprint, exact card signature, and explicit source-retirement marker to both receipts before deleting the source and staging video. Review can then trust the recorded source identity only while the published cards still match that signature. A durable hit keeps only its evidence/contact-sheet card set. A complete no-hit result with matching source identity and coverage deletes its generated cards. Cleanup waits for in-flight work to settle and preserves queue rows, receipts, verdicts, and audit logs.
+The configured working limit covers managed downloads, staging data, and cards still eligible for automatic processing. Confirmed-hit evidence and explicit manual-review holds are measured and displayed separately, so durable evidence cannot deadlock a cleanup-only guard. The guard also maintains a minimum real-drive free-space reserve and counts NTFS hard-linked source data only once. Once complete cards are atomically published, preparation writes the source fingerprint, exact card signature, and explicit source-retirement marker to both receipts before deleting the source and staging video. Review can then trust the recorded source identity only while the published cards still match that signature. A durable hit keeps only its evidence/contact-sheet card set. A complete no-hit result with matching source identity and coverage deletes its generated cards. Cleanup waits for in-flight work to settle and preserves queue rows, receipts, verdicts, and audit logs.
 
-Retained hit cards and manual-hold cards can legitimately fill the storage cap. Those records require deliberate review or archiving; automatic and manual media cleanup do not erase durable cards to make room.
+Retained hit cards and manual-hold cards require deliberate review or archiving. Automatic and manual media cleanup do not erase them to make room; the independent real-drive reserve remains the final protection against exhausting the disk.
 
 ## Repository modules
 

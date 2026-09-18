@@ -86,6 +86,21 @@ test('storage pressure evicts disposable downloads without deleting hit or manua
  assert.equal(await S.exists(path.join(root,'frames',rows[3].id,'cards','card_000001.jpg')),true);
  assert.equal(p.store.get(rows[0].id).status,'pending');assert.equal(p.store.get(rows[1].id).status,'error');
 });
+test('working storage excludes confirmed-hit and manual-review evidence without hiding total cards',async t=>{
+ const{root,p}=await fixture(t,['https://example.org/hit.mp4','https://example.org/manual.mp4','https://example.org/working.mp4']);
+ const rows=p.store.all('pending');
+ for(const [index,row] of rows.entries()){
+  const folder=await p.markFolder(`frames/${row.id}`);await fs.mkdir(path.join(folder,'cards'));
+  await fs.writeFile(path.join(folder,'cards','card_000001.jpg'),'X'.repeat(100+index));
+ }
+ p.hitIds=new Set([rows[0].id]);p.manualDeferredIds=new Set([rows[1].id]);
+ const usage=await PreparationPipeline.prototype.usage.call(p);
+ assert.equal(usage.bytes,usage.footageBytes+usage.cardBytes);
+ assert.equal(usage.guardBytes,usage.footageBytes+usage.workingCardBytes);
+ assert.equal(usage.cardBytes,usage.retainedCardBytes+usage.workingCardBytes);
+ assert.ok(usage.retainedCardBytes>0);assert.ok(usage.workingCardBytes>0);
+ assert.ok(usage.guardBytes<usage.bytes,'retained evidence does not deadlock the working limit');
+});
 test('a corrected FFmpeg odd-width geometry failure retries automatically on the next run',async t=>{
  const message='ffmpeg.exe failed: Padded dimensions cannot be smaller than input dimensions.';
  const{p}=await fixture(t,undefined,{makeCards:async()=>{throw new Error(message);}});

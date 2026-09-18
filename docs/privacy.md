@@ -46,7 +46,7 @@ These files can reveal source material, research interests, usage, or provider a
 
 Generated media becomes eligible for automatic cleanup only after a complete no-hit verdict has matching source identity and coverage. Cleanup waits for in-flight work and preserves queue records, receipts, verdicts, and audit logs.
 
-Hits, unfinished inputs, manual holds, and mismatched receipts are retained. The application does not erase them merely to satisfy the configured storage limit.
+Hits, unfinished inputs, manual holds, and mismatched receipts are retained. Confirmed hits and explicit manual-review holds are reported separately from the working-storage allowance, and the application does not erase them merely to satisfy that configured limit. A separate real-drive free-space guard can still pause new preparation before the disk becomes critically full.
 
 ## Sharing diagnostics
 
