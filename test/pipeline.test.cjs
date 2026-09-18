@@ -54,6 +54,33 @@ test('a transient source outage is retried automatically instead of becoming a p
  p.on('state',()=>{for(const id of p.preparationRetries.keys())p.preparationRetries.set(id,0);});
  await p.run();assert.equal(p.store.counts().ready,1);assert.equal(p.store.counts().error||0,0);assert.equal(p.store.all('ready')[0].attempts,2);
 });
+test('verified official Vimeo resolution is reused after access is configured',async t=>{
+ const page='https://footagefarm.com/reel-details/a/b/exact',vimeo='https://vimeo.com/214489418';let resolvedCalls=0,downloaded;
+ const{p}=await fixture(t,[page],{resolveMedia:async()=>{resolvedCalls++;throw new Error('verified Vimeo URL must be reused');},download:async(r,folder)=>{downloaded=r;const file=path.join(folder,'source.mp4');await fs.writeFile(file,'VIDEO');return file;}});
+ const row=p.store.all('pending')[0],authError='Vimeo access is required for this Footage Farm screener. Choose an Edge or Chrome profile, or a Netscape cookies file, in Settings.';
+ p.store.update(row.id,{status:'error',error:authError,media_url:vimeo,media_key:S.sha(vimeo)});
+ assert.equal(p.store.retryVimeoAuthenticationRequired(),1);await p.run();
+ assert.equal(resolvedCalls,0);assert.equal(downloaded.provider,'footagefarm-vimeo');assert.equal(downloaded.url,vimeo);assert.equal(downloaded.referer,page);assert.equal(p.store.counts().ready,1);
+});
+test('lazy verified Vimeo resolution survives an authentication-required failure',async t=>{
+ const page='https://footagefarm.com/reel-details/a/b/exact',vimeo='https://vimeo.com/214489418';
+ const{p}=await fixture(t,[page],{
+  resolveMedia:async()=>({url:'https://cdn.test/expired.mp4',direct:true,provider:'footagefarm',alternates:[{provider:'footagefarm-vimeo-lookup',url:page,referer:page,reel:'exact',duration:60,direct:false}]}),
+  download:async(_resolved,_folder,_tools,callbacks)=>{callbacks.onResolved({provider:'footagefarm-vimeo',url:vimeo,referer:page,direct:false,scope:'whole-reel'});throw Object.assign(new Error('Vimeo access is required for this Footage Farm screener. Choose an Edge or Chrome profile, or a Netscape cookies file, in Settings.'),{code:'VIMEO_AUTH_REQUIRED'});}
+ });
+ await p.run();const row=p.store.all('error')[0];assert.equal(row.media_url,vimeo);assert.equal(row.media_key,S.sha(vimeo));assert.match(row.error,/^Vimeo access is required/);
+});
+test('unverified saved Vimeo metadata cannot bypass a fresh resolver lookup',async t=>{
+ const page='https://footagefarm.com/reel-details/a/b/exact',vimeo='https://vimeo.com/214489418';let resolvedCalls=0;
+ const{p}=await fixture(t,[page],{resolveMedia:async()=>{resolvedCalls++;return{url:vimeo,direct:false,scope:'whole-reel',provider:'footagefarm-vimeo'};}});
+ const row=p.store.all('pending')[0];p.store.update(row.id,{status:'error',error:'Vimeo access is required for this Footage Farm screener. Choose access in Settings.',media_url:vimeo,media_key:'wrong-key'});
+ p.store.retryVimeoAuthenticationRequired();await p.run();assert.equal(resolvedCalls,1);assert.equal(p.store.counts().ready,1);
+});
+test('pipeline injects its resolver transport into live media resolution',async t=>{
+ const marker=async()=>new Response('ok'),calls=[];
+ const{p}=await fixture(t,undefined,{resolveMedia:async(url,_signal,fetchImpl)=>{calls.push(fetchImpl);return{url,direct:true};}});p.tools.resolverFetch=marker;
+ await p.run();assert.deepEqual(calls,[marker]);
+});
 test('URL lists parse quoted text and first headerless TSV record, ignore textual verdicts',async t=>{
  assert.deepEqual(parseDelimited('url,title\n"https://a.test/x","One, two\nthree"'),[['url','title'],['https://a.test/x','One, two\nthree']]);
  const{root}=await fixture(t);const p=path.join(root,'a.tsv');await fs.writeFile(p,'172014\tA title\thttps://filmhiradokonline.hu/watch.php?id=3224\n2\tB\thttps://a.test/b');assert.equal(sourceRows(p).length,2);assert.equal(stableId(sourceRows(p)[0].url),'fho-3224');

@@ -17,6 +17,7 @@ const {HitRecheck} = require('./lib/hit-recheck.cjs');
 const Policy = require('./lib/policy.cjs');
 const V = require('./lib/result-view.cjs');
 const VimeoAuth = require('./lib/vimeo-auth.cjs');
+const Scrapfly = require('./lib/scrapfly.cjs');
 const sharp = require('sharp');
 
 const testMode = process.env.REELSIGHT_TEST === '1';
@@ -27,7 +28,7 @@ if(testMode)app.disableHardwareAcceleration();
 app.setPath('userData', path.join(app.getPath('appData'), 'ReelSight'));
 if (testMode && process.env.REELSIGHT_TEST_USERDATA) app.setPath('userData', process.env.REELSIGHT_TEST_USERDATA);
 app.setName('Jewish Reels');
-let win, selectedProject = null, catalog = [], settings = {}, secret = process.env.OPENROUTER_API_KEY || '', engine, pipeline, learner, hitRecheck, starting = false,crawlWorker=null;
+let win, selectedProject = null, catalog = [], settings = {}, secret = process.env.OPENROUTER_API_KEY || '', scrapflySecret = process.env.SCRAPFLY_API_KEY || '', engine, pipeline, learner, hitRecheck, starting = false,crawlWorker=null;
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function send(channel, value) { if (win && !win.isDestroyed()) win.webContents.send(channel, value); }
 let persistWrites=Promise.resolve();
@@ -37,6 +38,7 @@ async function persist() {
   return persistWrites;
 }
 function connectionStatus() { return { configured: !!secret, remembered: !!settings.encryptedKey, environment: !!process.env.OPENROUTER_API_KEY }; }
+function scrapflyStatus() { return Scrapfly.publicStatus(scrapflySecret, { remembered: !!settings.encryptedScrapflyKey, environment: !!process.env.SCRAPFLY_API_KEY }); }
 function vimeoAccessStatus() {
   try { return VimeoAuth.publicVimeoAuth(settings.vimeoAuth); }
   catch { return { mode: 'none', configured: false }; }
@@ -73,7 +75,11 @@ function ensureBackfill() {
 function handle(name, fn) {
   ipcMain.handle(name, async (event, ...args) => {
     if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) throw new Error('Untrusted request.');
-    try { return { ok: true, value: await fn(...args) }; } catch (e) { return { ok: false, error: String(e.message || e).replace(/sk-or-[\w-]+/g, '[redacted]') }; }
+    try { return { ok: true, value: await fn(...args) }; } catch (e) {
+      let message=String(e.message || e).replace(/sk-or-[\w-]+/g, '[redacted]').replace(/([?&]key=)[^&\s]+/gi,'$1[redacted]');
+      if(scrapflySecret)message=message.split(scrapflySecret).join('[redacted]');
+      return { ok: false, error: message };
+    }
   });
 }
 async function openProject(folder) {
@@ -82,6 +88,7 @@ async function openProject(folder) {
   let project = await S.discover(folder,{sourceKey:settings.activeSource||null});
   matchImageCache.clear(); selectedProject = project; settings.folder = project.root; await persist();
   await pipeline.open(project.root);
+  const scrapflyRetried = scrapflySecret ? pipeline.store?.retryScrapflyRequired() || 0 : 0;
   // Opening the queue may quarantine a legacy source association and
   // supersede its verdict. Rediscover after those durable migrations so the
   // renderer never continues with the pre-migration completion snapshot.
@@ -90,7 +97,7 @@ async function openProject(folder) {
   const available=pipeline.store.sourcesList();
   if(settings.activeSource&&!available.some(s=>s.key===settings.activeSource)){delete settings.activeSource;project=await S.discover(folder);}
   if(!settings.activeSource&&available.length===1){settings.activeSource=available[0].key;project=await S.discover(folder,{sourceKey:settings.activeSource});await persist();}
-  pipeline.store.setActiveSource(settings.activeSource||null);pipeline.update({activeSource:settings.activeSource||null,sources:available});
+  pipeline.store.setActiveSource(settings.activeSource||null);pipeline.update({activeSource:settings.activeSource||null,sources:available,...(scrapflyRetried?{message:`Scrapfly access is configured. ${scrapflyRetried} rate-limited Footage Farm lookups were queued again.`}:{})});
   await engine.openWorkspace(project.root);
   hitRecheck?.info(project.root,activePolicy()).catch(error=>hitRecheck.update({status:'error',message:error.message}));
   const deferred = await projectDeferred(project);
@@ -157,6 +164,9 @@ async function createWindow() {
   if (!secret && settings.encryptedKey) {
     try { secret = safeStorage.decryptString(Buffer.from(settings.encryptedKey, 'base64')); } catch { delete settings.encryptedKey; }
   }
+  if (!scrapflySecret && settings.encryptedScrapflyKey) {
+    try { scrapflySecret = safeStorage.decryptString(Buffer.from(settings.encryptedScrapflyKey, 'base64')); } catch { delete settings.encryptedScrapflyKey; }
+  }
   engine = new ReviewEngine({ reviewer: API.reviewImage, prepareCard: makeImageAdapter(nativeImage) });
   learner = new LearningEngine({ analyze: API.analyzeMistake, prepareImages: makeLearningImages(nativeImage), account: async data => { await engine.usage.record(data); engine.update(engine.usage.snapshot()); } });
   hitRecheck = new HitRecheck({ reviewer: API.reviewImage, account: async data => { await engine.usage.record(data); engine.update(engine.usage.snapshot()); } });
@@ -164,7 +174,8 @@ async function createWindow() {
   learner.on('finished', () => send('learning-updated',true));
   hitRecheck.on('state', s => send('hit-recheck-state',s));
   const bin = app.isPackaged ? path.join(process.resourcesPath, 'media-tools') : path.resolve(__dirname, '../package-resources/media-tools');
-  pipeline = new PreparationPipeline({ getReviewLoad:()=>({workers:settings.workers??4,videoConcurrency:settings.videoConcurrency??4}), tools: { ffmpeg: path.join(bin,'ffmpeg.exe'), ffprobe: path.join(bin,'ffprobe.exe'), ytdlp: path.join(bin,'yt-dlp.exe'), getVimeoAuth:()=>VimeoAuth.normalizeVimeoAuth(settings.vimeoAuth) } });
+  const resolverFetch=Scrapfly.createResolverFetch({getApiKey:()=>scrapflySecret});
+  pipeline = new PreparationPipeline({ getReviewLoad:()=>({workers:settings.workers??4,videoConcurrency:settings.videoConcurrency??4}), tools: { ffmpeg: path.join(bin,'ffmpeg.exe'), ffprobe: path.join(bin,'ffprobe.exe'), ytdlp: path.join(bin,'yt-dlp.exe'), resolverFetch, getVimeoAuth:()=>VimeoAuth.normalizeVimeoAuth(settings.vimeoAuth) } });
   let pendingPrepareState=null,prepareStateTimer=null;
   const flushPrepareState=()=>{prepareStateTimer=null;if(pendingPrepareState){const value=pendingPrepareState;pendingPrepareState=null;send('prepare-state',value);}};
   pipeline.on('state', s => { pendingPrepareState=s;if(!prepareStateTimer)prepareStateTimer=setTimeout(flushPrepareState,250); });
@@ -205,7 +216,7 @@ async function createWindow() {
       else { e.preventDefault(); if(engine.running) engine.pause(); if(learner.running)learner.pause(); if(hitRecheck.running)hitRecheck.pause(); if(pipeline.running) pipeline.pause(); const check = setInterval(() => { if (!engine.running && !pipeline.running && !learner.running && !hitRecheck.running) { clearInterval(check); win.destroy(); app.quit(); } }, 250); }
     }
   });
-  handle('bootstrap', async () => ({ settings: { folder: settings.folder, activeSource:settings.activeSource, primary: settings.primary, secondary: settings.secondary, verification: settings.verification ?? true, verificationMode: settings.verificationMode || 'positives', detail: settings.detail ?? true, budget: settings.budget || 10, workers: settings.workers ?? 4, videoConcurrency: settings.videoConcurrency ?? 4, dispatchMode: settings.dispatchMode || 'one-at-a-time', recheckBudget:settings.recheckBudget||10, recheckWorkers:settings.recheckWorkers||16, autoBackfill: settings.autoBackfill, preparation: settings.preparation, vimeoAccess:vimeoAccessStatus() }, connection: connectionStatus(), state: engine.snapshot(), recheck:hitRecheck.snapshot(), preparation: pipeline.snapshot(), sources: await detectSources(app.getPath('documents')), version: app.getVersion(), criteria: criteriaView() }));
+  handle('bootstrap', async () => ({ settings: { folder: settings.folder, activeSource:settings.activeSource, primary: settings.primary, secondary: settings.secondary, verification: settings.verification ?? true, verificationMode: settings.verificationMode || 'positives', detail: settings.detail ?? true, budget: settings.budget || 10, workers: settings.workers ?? 4, videoConcurrency: settings.videoConcurrency ?? 4, dispatchMode: settings.dispatchMode || 'one-at-a-time', recheckBudget:settings.recheckBudget||10, recheckWorkers:settings.recheckWorkers||16, autoBackfill: settings.autoBackfill, preparation: settings.preparation, vimeoAccess:vimeoAccessStatus(), scrapfly:scrapflyStatus() }, connection: connectionStatus(), state: engine.snapshot(), recheck:hitRecheck.snapshot(), preparation: pipeline.snapshot(), sources: await detectSources(app.getPath('documents')), version: app.getVersion(), criteria: criteriaView() }));
   handle('get-criteria', () => criteriaView());
   handle('save-criteria', async document => {
     settings.criteria = Policy.mergeExistingLearnedRules(document).document;
@@ -294,6 +305,22 @@ async function createWindow() {
     await persist(); return connectionStatus();
   });
   handle('forget-key', async () => { noRun(); secret = ''; delete settings.encryptedKey; await persist(); return connectionStatus(); });
+  handle('save-scrapfly-key', async ({key,remember}={}) => {
+    if(pipeline.running||crawlWorker)throw new Error('Pause footage preparation before changing Scrapfly access.');
+    const normalized=Scrapfly.normalizedKey(key);if(!normalized)throw new Error('Enter a Scrapfly API key.');scrapflySecret=normalized;
+    if(remember&&!safeStorage.isEncryptionAvailable())throw new Error('Windows secure storage is unavailable. Turn off Remember to use the Scrapfly key for this session.');
+    if(remember)settings.encryptedScrapflyKey=safeStorage.encryptString(scrapflySecret).toString('base64');else delete settings.encryptedScrapflyKey;
+    await persist();const retried=pipeline.store?.retryScrapflyRequired()||0;
+    if(retried){pipeline.update({message:`Scrapfly access saved. ${retried} rate-limited Footage Farm lookups were queued again.`});ensureBackfill();}
+    return {...scrapflyStatus(),retried};
+  });
+  handle('forget-scrapfly-key', async () => {
+    if(pipeline.running||crawlWorker)throw new Error('Pause footage preparation before changing Scrapfly access.');
+    scrapflySecret=process.env.SCRAPFLY_API_KEY||'';delete settings.encryptedScrapflyKey;await persist();
+    const retried=scrapflySecret?pipeline.store?.retryScrapflyRequired()||0:0;
+    if(retried){pipeline.update({message:`Environment Scrapfly access restored. ${retried} rate-limited Footage Farm lookups were queued again.`});ensureBackfill();}
+    return {...scrapflyStatus(),retried};
+  });
   handle('choose-vimeo-cookies', async () => {
     if (pipeline.running || crawlWorker) throw new Error('Pause footage preparation before changing Vimeo access.');
     const choice=await dialog.showOpenDialog(win,{title:'Choose exported Vimeo cookies',properties:['openFile'],filters:[{name:'Netscape cookies file',extensions:['txt']},{name:'All files',extensions:['*']}]});

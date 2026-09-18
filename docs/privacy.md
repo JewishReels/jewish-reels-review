@@ -24,6 +24,10 @@ Clearing troubleshooting deletes that audit's scores and checkpoint. It does not
 
 An OpenRouter key can remain in memory for one session, be supplied through `OPENROUTER_API_KEY`, or be encrypted by Electron for the current Windows account. The compatibility settings profile remains under `%AppData%\ReelSight` for installations created before the Jewish Reels rename.
 
+An optional Scrapfly key follows the same boundary: it can remain in memory, come from `SCRAPFLY_API_KEY`, or be encrypted for the current Windows account. The renderer receives only configured/remembered status. The key is never written in plaintext to app settings, workspace logs, queue errors, receipts, or diagnostics.
+
+When configured, Scrapfly receives only public `vimeo.com/footagefarm/videos/search:…` and numeric-video oEmbed URLs used to identify an exact Footage Farm screener. Jewish Reels does not send video bytes, source images, browser cookies, authorization headers, Footage Farm page contents, or arbitrary target URLs through Scrapfly. Scrapfly processes those metadata requests under its own terms and privacy policy.
+
 Optional Footage Farm Vimeo access can use a signed-in Edge or Chrome profile or a Netscape cookies file. Settings retain only the selected browser/profile or the local cookies-file path. Jewish Reels does not copy, display, or log cookie values. The configured access is passed to yt-dlp only after the resolver has verified an exact reel-number and duration match on Footage Farm's official Vimeo account; it is never attached to arbitrary Vimeo or other media URLs.
 
 Never place credentials or an exported cookies file in the repository, a workspace fixture, a screenshot, or a captured request log. If a credential is exposed, revoke it rather than relying on deletion of the visible text.

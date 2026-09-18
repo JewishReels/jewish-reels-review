@@ -17,6 +17,7 @@ flowchart TB
 
     Prep --> Tools[ffmpeg · ffprobe · yt-dlp]
     Prep --> Workspace[(Local workspace)]
+    Prep -->|public Vimeo catalog metadata only| Resolver[Scrapfly · optional]
     Review --> Workspace
     Learn --> Workspace
     Audit --> Workspace
@@ -35,6 +36,8 @@ The producer accepts imported collections or crawler output. A website source ma
 Fixed sampling captures one frame per second. Adaptive modes may examine two or four candidates per second and retain extra frames only when their pixels differ materially. Published cards contain whole sampled frames; classification can split large contact sheets into overlapping image regions to preserve readable detail.
 
 Preparation uses separate limits for source work and FFmpeg work. Up to twelve independent sources may resolve, download, and hash concurrently, while the extraction limit follows available processors and never exceeds four. This keeps network waits overlapped without allowing a burst of multithreaded FFmpeg processes to make the desktop unresponsive. The limits also shrink automatically for a smaller review load or working-storage allowance.
+
+Footage Farm's ordinary page and video downloads remain direct. The optional Scrapfly adapter is a separate resolver transport restricted to the official Footage Farm Vimeo profile-search URL and numeric-video oEmbed metadata. It uses Scrapfly-managed retries, a 160-second client window, and at most two concurrent requests. Existing reel-number, official-account, duration, and unique-match checks run on the returned metadata before yt-dlp can receive a URL. A verified URL is retained across a Vimeo-authentication retry so recovery does not repeat the rate-limited search.
 
 The producer maintains one durable owner for identical source pixels. Exact downloaded bytes and exact story boundaries may reuse an owner's published cards; a segment inside a long reel remains distinct from the whole reel and from other story ranges. The downloaded source is hashed once while its file identity is stable. Publication then verifies the generated cards and retires the unchanged owned source without rereading the entire MP4.
 
@@ -85,6 +88,7 @@ Jewish Reels distinguishes failures by the action that can resolve them:
 
 - **Rate limit:** all new model sends wait for a shared cooldown; in-flight responses can finish.
 - **Transient connection or provider generation failure:** retry the same unfinished image with bounded backoff while preserving completed regions.
+- **Public Vimeo lookup throttled:** stop the local request burst, request Scrapfly configuration, and requeue those lookups when access is saved.
 - **Provider content refusal:** place the input on manual hold without repeatedly resending it.
 - **Changed source or receipt mismatch:** keep the video pending until preparation creates a matching complete input.
 - **Malformed model output:** retry the identical image under the output contract; never coerce a contradictory answer into a no.
@@ -100,7 +104,7 @@ Retained hit cards and manual-hold cards require deliberate review or archiving.
 ## Repository modules
 
 - `lib/website-crawler.cjs`, `lib/footagefarm.cjs`, and `lib/myfootage.cjs` discover supported catalog records. MyFootage enumeration requires an explicit permission confirmation from the renderer through the main process and worker.
-- `lib/queue.cjs`, `lib/pipeline.cjs`, `lib/media.cjs`, and `lib/storage.cjs` own preparation and persistence.
+- `lib/queue.cjs`, `lib/pipeline.cjs`, `lib/media.cjs`, `lib/scrapfly.cjs`, and `lib/storage.cjs` own preparation and persistence.
 - `lib/engine.cjs`, `lib/review-video.cjs`, `lib/openrouter.cjs`, and `lib/output-contract.cjs` own visual review.
 - `lib/criteria.cjs`, `lib/feedback.cjs`, and the learning modules own editable rules and human labels.
 - `lib/hit-recheck.cjs` owns the independent saved-evidence audit.

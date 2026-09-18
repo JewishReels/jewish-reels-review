@@ -29,7 +29,8 @@ test('verified Vimeo resolver migration requeues unavailable Footage Farm rows e
  q.update('ff-1',{status:'unavailable',attempts:4,error:'PREVIEW_UNAVAILABLE: no direct screener'});const other=q.db.prepare("SELECT id FROM items WHERE id<>'ff-1'").get().id;q.update(other,{status:'unavailable',error:'PREVIEW_UNAVAILABLE: unrelated'});
  assert.equal(q.requeueFootageFarmUnavailable(),1);assert.equal(q.get('ff-1').status,'pending');assert.equal(q.get('ff-1').attempts,0);assert.equal(q.get(other).status,'unavailable');
  q.update('ff-1',{status:'unavailable',error:'PREVIEW_UNAVAILABLE: still unavailable'});assert.equal(q.requeueFootageFarmUnavailable(),0);assert.equal(q.get('ff-1').status,'unavailable');
- q.update('ff-1',{status:'error',error:'Vimeo access is required for this Footage Farm screener. Choose access in Settings.'});assert.equal(q.retryVimeoAuthenticationRequired(),1);assert.equal(q.get('ff-1').status,'pending');assert.equal(q.retryVimeoAuthenticationRequired(),0);
+ const authError='Vimeo access is required for this Footage Farm screener. Choose access in Settings.';q.update('ff-1',{status:'error',error:authError});assert.equal(q.retryVimeoAuthenticationRequired(),1);assert.equal(q.get('ff-1').status,'pending');assert.equal(q.get('ff-1').error,authError);assert.equal(q.retryVimeoAuthenticationRequired(),0);
+ q.update('ff-1',{status:'error',error:'Scrapfly access is required while Vimeo is rate-limiting the public Footage Farm catalog lookup. Add a Scrapfly API key in Connection & settings.'});assert.equal(q.retryScrapflyRequired(),1);assert.equal(q.get('ff-1').status,'pending');
 });
 test('legacy Footage Farm media failures get bounded fresh resolver attempts',async t=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'ff-media-retry-')),file=path.join(root,'ff.json');

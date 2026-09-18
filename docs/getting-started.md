@@ -10,6 +10,7 @@ Jewish Reels currently runs from source on Windows 10 or 11 x64. No supported in
 - FFmpeg and FFprobe 9.0.1 from the Gyan essentials build
 - yt-dlp 2026.08.19 Windows standalone executable
 - An [OpenRouter](https://openrouter.ai/) API key for model-backed classification
+- An optional [Scrapfly](https://scrapfly.io/) project key when Vimeo rate-limits Footage Farm's public catalog metadata
 
 Preparation can run without an OpenRouter key. Model-backed review, feedback learning, and saved-hit troubleshooting require one.
 
@@ -55,6 +56,8 @@ Open **Connection & settings** and enter an OpenRouter API key.
 Never add a key to source files, fixtures, screenshots, issues, or logs. Revoke a credential immediately if it is exposed.
 
 For Footage Farm records that exist only on its official Vimeo account, the same settings screen can use a signed-in Edge or Chrome profile, or an exported Netscape cookies file. This is optional for ordinary Footage Farm progressive screeners. The app stores the selected profile or file path, not cookie contents, and uses it only after the Footage Farm account, reel number, and duration have been verified.
+
+The **Scrapfly resolver** setting is separate from Vimeo sign-in. When configured, it sends only Footage Farm's public Vimeo profile-search and oEmbed metadata URLs through Scrapfly's Unblocker. It never sends video files, browser cookies, source images, or arbitrary URLs. A Scrapfly key can remain in memory, be encrypted for the current Windows account, or be supplied through `SCRAPFLY_API_KEY`. Vimeo access is still required for a Vimeo video whose web client requires a signed-in session.
 
 ## First run
 
