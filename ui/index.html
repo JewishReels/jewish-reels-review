@@ -53,7 +53,7 @@
     <section class="activity"><div><h2>Activity</h2><span id="activityNote">Local files · shared worker pool</span></div><div id="activityList"><p class="muted">Ready when you are. No images have been sent.</p></div></section>
     </div>
     <div id="matchesView" hidden>
-      <header><div><div class="eyebrow">CONFIRMED VISUAL EVIDENCE</div><h1>Review matches.</h1><p>Inspect one matched video at a time. Use the arrow keys or buttons to move between videos.</p></div><div class="header-actions"><button class="button subtle" id="matchesBack">← Review dashboard</button><button class="button" id="matchSourceTop" hidden>Open original source ↗</button></div></header>
+      <header><div><div class="eyebrow">CONFIRMED VISUAL EVIDENCE · ALL SOURCES</div><h1>Review matches.</h1><p>Inspect saved matches from every source in this workspace. Use the arrow keys or buttons to move between videos.</p></div><div class="header-actions"><button class="button subtle" id="matchesBack">← Review dashboard</button><button class="button" id="matchSourceTop" hidden>Open original source ↗</button></div></header>
       <section id="matchesEmpty" class="card empty-state"><div class="empty-icon">◇</div><h3>No accepted matches yet</h3><p>Confirmed strict hits will appear here as the AI review completes.</p><button class="button" id="matchesEmptyBack">Open visual review</button></section>
       <section id="matchReview" class="card match-review" hidden>
         <nav class="match-review-nav" aria-label="Match navigation"><button class="button" id="previousMatch">← Previous video</button><div><strong id="matchPosition">1 of 1</strong><span id="matchId">Video</span></div><button class="button" id="nextMatch">Next video →</button></nav>
@@ -65,7 +65,7 @@
       </section>
     </div>
     <div id="bulkLabelView" hidden>
-      <header><div><div class="eyebrow">HUMAN TRAINING LABELS</div><h1>Bulk label hits.</h1><p>Select model hits, inspect their saved evidence, then confirm or reject them together.</p></div><div class="bulk-header-count"><strong id="bulkUnlabeledCount">0</strong><span>unlabeled unique hits</span></div></header>
+      <header><div><div class="eyebrow">HUMAN TRAINING LABELS · ALL SOURCES</div><h1>Bulk label hits.</h1><p>Select model hits from every source, inspect their saved evidence, then confirm or reject them together.</p></div><div class="bulk-header-count"><strong id="bulkUnlabeledCount">0</strong><span>unlabeled unique hits</span></div></header>
       <section class="card bulk-toolbar" aria-label="Bulk label controls">
         <div class="bulk-filter-row">
           <label>SHOW<select id="bulkStatusFilter"><option value="unlabeled">Unlabeled hits</option><option value="all">All hits</option><option value="confirmed_hit">Confirmed hits</option><option value="false_hit">Rejected hits</option></select></label>

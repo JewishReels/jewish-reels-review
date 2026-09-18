@@ -4,7 +4,7 @@ Jewish Reels separates footage preparation from model-backed visual review. Prep
 
 ## Choose a source
 
-The source selector limits the active pipeline to one collection without deleting other queues. A source may come from:
+The source selector limits preparation and each new visual-review run to one collection without deleting other queues. A source may come from:
 
 - the Footage Farm catalog crawler;
 - a MyFootage source registered locally before any catalog access;
@@ -19,6 +19,8 @@ Crawler boundaries should stay on the selected website. Review the discovered UR
 
 Footage Farm pages are resolved in two stages. The app first uses the page's advertised progressive screener files. If no usable file is present, it considers a video from Footage Farm's official Vimeo account only when the reel number is an exact title match, the account identity is official, the duration agrees, and exactly one candidate passes those checks. Vimeo currently requires an authenticated session for these downloads. Configure **Footage Farm Vimeo access** under **Connection & settings** with a signed-in Edge or Chrome profile, or an exported Netscape cookies file. Close the selected browser if Windows reports that its cookie database is locked.
 
+Changing the active source changes which records preparation and new visual review can consume. **Review matches** and **Bulk label hits** are workspace-wide and continue to show saved hits from every source, with the source identified on each result.
+
 ## Prepare footage
 
 Preparation resolves playable media, downloads or normalizes it, probes timing, samples frames, builds timestamped contact sheets, validates coverage, and then publishes the finished card set atomically.
@@ -29,7 +31,7 @@ A card set does not become reviewable until its receipt proves complete coverage
 
 ## Run visual review
 
-Choose the active source, model, request mode, worker ceiling, simultaneous-video ceiling, and run budget. The worker value is a global request ceiling. The simultaneous-video setting controls how many videos share that capacity.
+Choose the active source, model, request mode, worker ceiling, simultaneous-video ceiling, and run budget. Only complete prepared cards owned by that source enter the new run. The worker value is a global request ceiling. The simultaneous-video setting controls how many videos share that capacity.
 
 Completed image regions are checkpointed. Pausing, restarting, a temporary connection failure, or a provider cooldown does not discard saved work. A confirmed visual hit stops unsent regions for that video while requests already in flight can finish and be saved.
 
@@ -37,13 +39,13 @@ A no-hit result is written only after every required card and region completes s
 
 ## Review matches
 
-Each match retains the cue, explanation, evidence location, normalized bounding box, source card, model, and review configuration. Open the evidence viewer to zoom, drag, and compare the highlighted region with the complete saved image.
+**Review matches** combines accepted saved hits from every source in the open workspace. Each match identifies its source and retains the cue, explanation, evidence location, normalized bounding box, source card, model, and review configuration. Open the evidence viewer to zoom, drag, and compare the highlighted region with the complete saved image.
 
 Videos can contain more than one match. Use the per-video controls to cycle through that video's hits or the broader controls to move through every retained match.
 
 ## Confirm or reject results
 
-Use individual review actions for close inspection or bulk review for a page of obvious results. A label is attached to the exact evidence target and can be edited or removed later.
+Use individual review actions for close inspection or **Bulk label hits** for a page of results drawn from every workspace source. A label is attached to the exact evidence target and can be edited or removed later.
 
 **Retrain from feedback** does not alter model weights. It reads the complete current confirmed and false label set, asks the selected reviewer to describe observable distinctions, merges only lessons that agree in direction and visual meaning, and replaces the learned entries in the editable Classification rules. Manual rules remain editable and are preserved.
 

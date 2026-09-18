@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.63 · Windows 10 and 11
+  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.64 · Windows 10 and 11
 </p>
 
 ![Jewish Reels displaying a real saved match, its source contact sheet, highlighted visual evidence, and model explanation](docs/screenshots/03-review-match-live.png)
@@ -80,7 +80,7 @@ Preparation and visual review are separate long-running jobs. Preparation can co
 
 ## 1. Choose a footage source
 
-The source selector limits the active workflow to one collection at a time. This makes it possible to run a clean Footage Farm job, a separate crawl of another public site, or a curated imported list without mixing their queues or deleting earlier work.
+The source selector limits preparation and each new visual-review run to one collection at a time. This makes it possible to run a clean Footage Farm job, a separate crawl of another public site, or a curated imported list without mixing their queues or deleting earlier work.
 
 Jewish Reels can start from:
 
@@ -95,7 +95,7 @@ Jewish Reels can start from:
 
 MyFootage has an additional permission gate. Adding it creates a zero-URL source that can be selected without contacting MyFootage. Its crawl control stays locked until the operator confirms permission from the website owner; the network crawl begins only after that confirmation and a separate press of **Crawl authorized source**. The tailored crawler divides the official MyFootage catalog into the site's four exhaustive format classes so it can move beyond the site's 10,000-result ceiling and include clips that have no decade tag. Each partition receives an isolated temporary website session, every continuation page is checkpointed, and the crawler verifies the site's declared row count, rejects replayed pages, and rejects overlap between supposedly exclusive partitions. A live audit for this version accounted for all 10,007 catalog rows: 10,003 public video previews and four image-only records, which are reported but not added to the video queue. An authorized TXT, CSV, or JSON list of individual MyFootage clip URLs can also be imported into the same isolated source. Imported collections can be selected again later, and each source retains its queue, preparation state, verdicts, and retry history.
 
-Switching the active source changes which records appear in preparation and review. It does not erase the other sources in the workspace.
+Switching the active source changes which records are eligible for preparation and new visual review. **Review matches** and **Bulk label hits** remain workspace-wide: they show saved hits from every source together and identify the source attached to each result. Switching sources does not erase or hide saved evidence from the other sources in the workspace.
 
 ## 2. Prepare complete visual coverage
 
@@ -121,7 +121,7 @@ The **ready buffer** controls how much prepared work should stay ahead of the mo
 
 ## 3. Screen the prepared footage
 
-Visual review reads only complete prepared card sets. The reviewer can choose:
+Visual review reads only complete prepared card sets from the active source. The reviewer can choose:
 
 - the active footage source;
 - the primary vision model;
@@ -160,7 +160,7 @@ Identical source pixels can also appear under several catalog records. The works
 
 ## 5. Inspect every match
 
-The match-review screen places the image and the claim beside each other. It includes:
+The match-review screen combines accepted saved hits from every source in the open workspace and places the image and the claim beside each other. It includes:
 
 - the complete saved contact sheet;
 - an optional highlight around the returned location;
@@ -180,7 +180,7 @@ Confidence is the model's own estimate. It is not a measured probability of corr
 
 ## 6. Confirm or reject saved hits
 
-Human feedback can be recorded from an individual evidence view or from the bulk-label screen. Each label belongs to an exact evidence target, rather than to a broad title or video category.
+Human feedback can be recorded from an individual evidence view or from the bulk-label screen. Both screens browse saved hits across every source in the open workspace, while each label belongs to an exact evidence target rather than to a broad title or video category.
 
 The bulk screen supports:
 
@@ -339,15 +339,15 @@ The screenshots in this README were captured from the 2.4.54 workspace. They sho
 5. Start preparation.
 6. Select the same source in **Visual review** and begin screening when complete cards become available.
 
-Other source queues remain present but do not appear in the active run.
+Other source queues remain present but do not enter the active preparation or visual-review run. Their saved hits remain available in **Review matches** and **Bulk label hits**.
 
 ### Review existing matches
 
-Open **Review matches** to move through one accepted video at a time. Use the hit controls to inspect every saved match in the selected video. Zoom or drag the image, toggle the location highlight, load the full-resolution card, and open the original source when more context is needed.
+Open **Review matches** to move through accepted videos from every source in the workspace. Use the hit controls to inspect every saved match in the selected video. The evidence details identify its source; you can zoom or drag the image, toggle the location highlight, load the full-resolution card, and open the original source when more context is needed.
 
 ### Correct results and improve future review
 
-Use **Inspect or correct this match** for a single item or **Bulk label hits** for a page of results. Record confirmations and rejections, edit any earlier labels that have changed, then run **Retrain from feedback**. Review the generated learned rules alongside the manual rules before starting new work.
+Use **Inspect or correct this match** for a single item or **Bulk label hits** for a page of workspace-wide results. Search and review hits from every source together, record confirmations and rejections, edit any earlier labels that have changed, then run **Retrain from feedback**. Review the generated learned rules alongside the manual rules before starting new work.
 
 ### Audit the current hit collection
 

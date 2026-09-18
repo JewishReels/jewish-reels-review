@@ -4,3 +4,5 @@
 #bulkLabelView{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;overflow:hidden}#bulkLabelView>header,#bulkLabelView>.bulk-toolbar{flex:none}.bulk-toolbar{margin-bottom:0;padding:12px 14px}.bulk-filter-row{padding-bottom:10px}.bulk-action-row{padding-top:10px}.bulk-training-note{margin-top:10px;padding-top:9px}.bulk-results{flex:1;min-height:0;display:flex;flex-direction:column}.bulk-results>.results-heading,.bulk-pagination{flex:none}.bulk-grid{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;align-content:start;grid-auto-rows:max-content}
 @media(max-width:1320px){.bulk-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.bulk-action-row{flex-wrap:wrap}.bulk-selection-summary{flex:1 0 100%}.bulk-reason-label,.bulk-note-label{min-width:180px}}
 @media(max-width:980px){.bulk-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bulk-filter-row{flex-wrap:wrap}.bulk-search-label{min-width:280px}.bulk-header-count{display:none}}
+
+.bulk-source{color:#8b6b31;margin-top:5px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

@@ -41,7 +41,19 @@ function vimeoAccessStatus() {
   try { return VimeoAuth.publicVimeoAuth(settings.vimeoAuth); }
   catch { return { mode: 'none', configured: false }; }
 }
-async function projectCounts(p) { const feedback = await F.load(p.root),active=F.active(feedback); return { root: p.root, videoCount: p.videos.length + p.issues.length, cardCount: p.videos.reduce((n,v) => n + v.cards.length, 0), entries: V.summaries(p.entries, feedback), feedback: { active: active.length, confirmed: active.filter(e=>e.action==='confirmed_hit').length, false: active.filter(e=>e.action==='false_hit').length, checks: F.context(feedback).reasons.length } }; }
+async function projectCounts(p) {
+  const feedback = await F.load(p.root),active=F.active(feedback);
+  return {
+    root: p.root,
+    videoCount: p.videos.length + p.issues.length,
+    cardCount: p.videos.reduce((n,v) => n + v.cards.length, 0),
+    // The review dashboard stays scoped to the selected source. Saved model
+    // hits remain visible across the workspace for match review and labeling.
+    entries: V.summaries(p.entries, feedback),
+    hitEntries: V.summaries(p.workspaceHits || p.entries.filter(entry => entry.verdict === 'jewish'), feedback),
+    feedback: { active: active.length, confirmed: active.filter(e=>e.action==='confirmed_hit').length, false: active.filter(e=>e.action==='false_hit').length, checks: F.context(feedback).reasons.length }
+  };
+}
 function projectProgress(p) { return { total: new Set([...p.videos, ...p.entries, ...p.issues].map(v => String(v.id))).size, done: p.entries.length, hits: p.entries.filter(e => e.verdict === 'jewish').length }; }
 async function projectDeferred(p) {
   const saved = await S.readJson(path.join(p.root,'logs','reelsight_deferred.json'), { version: 1, videos: [] });
@@ -396,7 +408,7 @@ async function createWindow() {
     if (!selectedProject) throw new Error('Choose a project first.');
     const root = selectedProject.root;
     await F.save(root, options);
-    const result = await projectCounts({ ...selectedProject, entries: (await S.loadLedger(root)).entries });
+    const result = await projectCounts(selectedProject);
     send('project-updated', result);
     send('learning-updated',true);
     engine.event(options.action === 'undo' ? `${options.id} · human label undone.` : options.action === 'confirmed_hit' ? `${options.id} · evidence confirmed as a true hit. Retraining will use this positive example.` : `${options.id} · evidence flagged as a false hit. Retraining will use this negative example; the saved card remains available.`);
@@ -406,8 +418,6 @@ async function createWindow() {
     if (!selectedProject) throw new Error('Choose a project first.');
     const root = selectedProject.root;
     const saved = await F.saveMany(root, options);
-    const ledger = await S.loadLedger(root);
-    selectedProject = { ...selectedProject, entries: ledger.entries };
     const project = await projectCounts(selectedProject);
     send('project-updated', project);
     send('learning-updated', true);

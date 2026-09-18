@@ -3,16 +3,16 @@ let bulkPage = 0, bulkBusy = false, bulkRenderToken = 0, bulkSearchTimer = null,
 const bulkSelected = new Map(), bulkImagePromises = new Map();
 
 function bulkUniqueHits() {
-  if (entries === bulkGroupSource) return bulkGroups;
+  if (hitEntries === bulkGroupSource) return bulkGroups;
   const groups = new Map();
-  for (const entry of entries.slice().reverse()) {
+  for (const entry of hitEntries.slice().reverse()) {
     if (entry.verdict !== 'jewish') continue;
     const key = entry.feedback_target || `missing:${entry.id}`;
     const existing = groups.get(key);
     if (existing) existing.copies.push(entry);
     else groups.set(key, { key, entry, copies: [entry] });
   }
-  bulkGroupSource = entries; bulkGroups = [...groups.values()]; return bulkGroups;
+  bulkGroupSource = hitEntries; bulkGroups = [...groups.values()]; return bulkGroups;
 }
 
 function bulkStatus(entry) {
@@ -21,7 +21,7 @@ function bulkStatus(entry) {
 
 function bulkHaystack(group) {
   const entry = group.entry, cues = Array.isArray(entry.cues) ? entry.cues : entry.cues ? [entry.cues] : [];
-  return [entry.id, entry.title, entry.summary, entry.method, entry.url, ...cues, ...group.copies.map(copy => copy.id)].filter(Boolean).join(' ').toLowerCase();
+  return [entry.id, entry.title, entry.summary, entry.method, entry.url, sourceName(entry), ...entrySourceKeys(entry), ...cues, ...group.copies.map(copy => copy.id)].filter(Boolean).join(' ').toLowerCase();
 }
 
 function bulkFilteredGroups() {
@@ -90,10 +90,11 @@ function bulkCard(group, tasks) {
   const media = el('div', 'bulk-card-media'), image = document.createElement('img'), fallback = el('span', 'bulk-image-status', 'Loading evidence…');
   image.alt = `Saved evidence for ${entry.id}`; image.hidden = true; media.append(image, fallback); tasks.push([group, image, fallback]);
   const body = el('div', 'bulk-card-body'), heading = el('div', 'bulk-card-heading');
-  heading.append(el('strong', '', String(entry.id)), group.copies.length > 1 ? el('span', 'bulk-copy-count', `${group.copies.length} linked records`) : document.createTextNode(''));
+  const linked = entry.catalog_id_count || group.copies.length;
+  heading.append(el('strong', '', String(entry.id)), linked > 1 ? el('span', 'bulk-copy-count', `${linked} linked records`) : document.createTextNode(''));
   const cues = Array.isArray(entry.cues) ? entry.cues : entry.cues ? [entry.cues] : [];
   const cue = cues.map(prettyCue).join(' / ') || 'Strict visual hit';
-  body.append(heading, el('h3', '', entry.title || 'Untitled source'), el('p', 'bulk-cue', cue), el('p', 'bulk-summary', entry.summary || 'No evidence description was saved.'));
+  body.append(heading, el('p', 'bulk-source', sourceName(entry)), el('h3', '', entry.title || 'Untitled source'), el('p', 'bulk-cue', cue), el('p', 'bulk-summary', entry.summary || 'No evidence description was saved.'));
   if (locked) body.append(el('p', 'bulk-locked-note', status === 'unlabeled' ? 'Refresh this project before labeling.' : 'Open this hit to change or undo its current label.'));
   const inspect = el('button', 'button subtle bulk-inspect', 'Inspect evidence'); inspect.type = 'button'; inspect.onclick = act(() => openEvidence(entry)); body.append(inspect);
   checkbox.onchange = () => { if (checkbox.checked) bulkSelected.set(group.key, entry); else bulkSelected.delete(group.key); article.classList.toggle('selected', checkbox.checked); bulkSelectionState(); };

@@ -13,3 +13,15 @@ test('MyFootage source registration is separate from its permission-gated crawl 
  assert.match(app,/api\.call\('crawl-website',\{url:[^}]+authorized:/);
  assert.match(app,/added as an empty source\. No website request was made\./);
 });
+
+test('saved-hit views use the workspace-wide hit collection while active review stays source-scoped',()=>{
+ const app=fs.readFileSync(path.join(__dirname,'..','ui','app.js'),'utf8'),bulk=fs.readFileSync(path.join(__dirname,'..','ui','bulk-feedback.js'),'utf8'),main=fs.readFileSync(path.join(__dirname,'..','main.cjs'),'utf8'),storage=fs.readFileSync(path.join(__dirname,'..','lib','storage.cjs'),'utf8'),html=fs.readFileSync(path.join(__dirname,'..','ui','index.html'),'utf8');
+ assert.match(storage,/workspaceHits:\s*current\.filter\(entry => entry\.verdict === 'jewish'\)/);
+ assert.match(main,/entries:\s*V\.summaries\(p\.entries, feedback\)/);
+ assert.match(main,/hitEntries:\s*V\.summaries\(p\.workspaceHits/);
+ assert.doesNotMatch(main,/selectedProject\s*=\s*\{\s*\.\.\.selectedProject,\s*entries:\s*ledger\.entries/);
+ assert.match(app,/acceptedMatches=\(\)=>hitEntries\.filter\(isAcceptedHit\)/);
+ assert.match(app,/mergeResult\(entries,entry\);mergeResult\(hitEntries,entry,true\)/);
+ assert.match(bulk,/for \(const entry of hitEntries\.slice\(\)\.reverse\(\)\)/);
+ assert.match(html,/ALL SOURCES/);
+});
