@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.58 · Windows 10 and 11
+  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.60 · Windows 10 and 11
 </p>
 
 ![Jewish Reels displaying a real saved match, its source contact sheet, highlighted visual evidence, and model explanation](docs/screenshots/03-review-match-live.png)
@@ -85,12 +85,15 @@ The source selector limits the active workflow to one collection at a time. This
 Jewish Reels can start from:
 
 - the Footage Farm catalog crawler;
+- MyFootage as an empty, isolated source before any website access;
 - the generic same-site website crawler;
 - a text, CSV, or JSON file containing URLs;
 - a supported queue database; or
 - records already imported into the current workspace.
 
-The generic crawler stays within the selected website and looks for pages containing playable video. The Footage Farm adapter understands that catalog's theme, subtheme, and reel structure. Imported collections can be selected again later, and each source retains its queue, preparation state, verdicts, and retry history.
+**Add source** records the source locally and makes no request to the website. The generic crawler stays within the selected website and looks for pages containing playable video. The Footage Farm adapter understands that catalog's theme, subtheme, and reel structure.
+
+MyFootage has an additional permission gate. Adding it creates a zero-URL source that can be selected without contacting MyFootage. Its crawl control stays locked until the operator confirms permission from the website owner; the network crawl begins only after that confirmation and a separate press of **Crawl authorized source**. An authorized TXT, CSV, or JSON list of individual MyFootage clip URLs can also be imported into the same isolated source. Imported collections can be selected again later, and each source retains its queue, preparation state, verdicts, and retry history.
 
 Switching the active source changes which records appear in preparation and review. It does not erase the other sources in the workspace.
 

@@ -10,6 +10,7 @@
 #dispatchMode{width:185px}
 .source-import{margin-top:15px;padding-top:15px;border-top:1px solid var(--line)}#activeSource{font-weight:650}
 .source-controls input[type=url]{width:100%;height:42px;font-size:12px}
+.source-controls .source-provider{flex:0 0 190px}.source-permission{margin:12px 24px 0;padding:12px 14px;border:1px solid #d9c89e;border-radius:7px;background:#fff8e8;color:#5e4c24;font-size:11px;line-height:1.5}.source-permission label{display:flex;align-items:flex-start;gap:8px;font-weight:650}.source-permission input{margin-top:2px}.source-permission span{display:block;margin:5px 0 0 23px;color:#756849}@media(max-width:1260px){.source-controls .source-provider{flex:1 1 220px}}
 
 .review-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.worker-list{max-height:330px;overflow-y:auto;overscroll-behavior:contain}.metric small{overflow-wrap:anywhere}
 

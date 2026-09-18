@@ -218,16 +218,27 @@ async function createWindow() {
     else { const known=await detectSources(app.getPath('documents')); if(!known.some(s=>s.file===file))throw new Error('Choose the URL list through Browse.'); }
     const result = await pipeline.import(file); settings.activeSource=result.sourceKey;await persist();selectedProject=await S.discover(selectedProject.root,{sourceKey:result.sourceKey});send('project-updated',await projectCounts(selectedProject));ensureBackfill(); return result;
   });
-  handle('crawl-website', async ({url}={}) => {
+  handle('add-website-source', async ({url}={}) => {
     if(!selectedProject)throw new Error('Create a footage workspace first.');
-    noRun();if(pipeline.running)throw new Error('Pause preparation before refreshing Footage Farm.');
+    noRun();if(pipeline.running)throw new Error('Pause preparation before adding a source.');
     let parsed;try{parsed=new URL(String(url||''));}catch{throw new Error('Enter a complete website URL, including https://.');}
     if(!['http:','https:'].includes(parsed.protocol)||parsed.username||parsed.password)throw new Error('Enter a public HTTP(S) website URL.');
+    const host=parsed.hostname.toLowerCase().replace(/^www\./,''),known=host==='myfootage.com'?{key:'myfootage',label:'MyFootage',homepage:'https://www.myfootage.com/'}:host==='footagefarm.com'?{key:'footagefarm',label:'Footage Farm',homepage:'https://footagefarm.com/'}:null;
+    const key=known?.key||host.replace(/[^a-z0-9]+/g,'-'),label=known?.label||parsed.hostname.replace(/^www\./,''),homepage=known?.homepage||parsed.origin+'/';
+    const result=pipeline.registerSource({sourceKey:key,label,homepage,kind:'website'});settings.activeSource=key;await persist();selectedProject=await S.discover(selectedProject.root,{sourceKey:key});send('project-updated',await projectCounts(selectedProject));return result;
+  });
+  handle('crawl-website', async ({url,authorized=false}={}) => {
+    if(!selectedProject)throw new Error('Create a footage workspace first.');
+    noRun();if(pipeline.running)throw new Error('Pause preparation before crawling a source.');
+    let parsed;try{parsed=new URL(String(url||''));}catch{throw new Error('Enter a complete website URL, including https://.');}
+    if(!['http:','https:'].includes(parsed.protocol)||parsed.username||parsed.password)throw new Error('Enter a public HTTP(S) website URL.');
+    const host=parsed.hostname.toLowerCase().replace(/^www\./,'');
+    if(host==='myfootage.com'&&authorized!==true)throw new Error('MyFootage crawling is locked. Confirm that you have permission to crawl this source before starting.');
     const key=parsed.hostname.toLowerCase().replace(/^www\./,'').replace(/[^a-z0-9]+/g,'-'),file=path.join(selectedProject.root,'.pipeline','sources',`${key}.json`);
     starting=true;
     pipeline.update({status:'crawling',message:`Reading ${parsed.hostname} public catalog…`});
     try{
-      const crawl=await new Promise((resolve,reject)=>{let settled=false,last=0;crawlWorker=new Worker(path.join(__dirname,'lib','crawl-worker.cjs'),{workerData:{startUrl:parsed.href,output:file,concurrency:6}});crawlWorker.on('message',message=>{if(message.type==='progress'){const now=Date.now();if(now-last>400){last=now;const p=message.value;pipeline.update({status:'crawling',crawl:p,message:`Reading ${parsed.hostname} · ${p.completed.toLocaleString()} pages · ${p.reels.toLocaleString()} video URLs`});}}else if(message.type==='done'){settled=true;resolve(message.value);}else if(message.type==='error'){settled=true;reject(new Error(message.error));}});crawlWorker.on('error',reject);crawlWorker.on('exit',code=>{crawlWorker=null;if(!settled)reject(new Error(code?'Website crawl worker stopped unexpectedly.':'Website crawl was paused.'));});});
+      const crawl=await new Promise((resolve,reject)=>{let settled=false,last=0;crawlWorker=new Worker(path.join(__dirname,'lib','crawl-worker.cjs'),{workerData:{startUrl:parsed.href,output:file,concurrency:6,authorized:host==='myfootage.com'&&authorized===true}});crawlWorker.on('message',message=>{if(message.type==='progress'){const now=Date.now();if(now-last>400){last=now;const p=message.value;pipeline.update({status:'crawling',crawl:p,message:`Reading ${parsed.hostname} · ${p.completed.toLocaleString()} pages · ${p.reels.toLocaleString()} video URLs`});}}else if(message.type==='done'){settled=true;resolve(message.value);}else if(message.type==='error'){settled=true;reject(new Error(message.error));}});crawlWorker.on('error',reject);crawlWorker.on('exit',code=>{crawlWorker=null;if(!settled)reject(new Error(code?'Website crawl worker stopped unexpectedly.':'Website crawl was paused.'));});});
       const result=await pipeline.import(file,{sourceKey:crawl.sourceKey,label:crawl.label,kind:'crawled'});settings.activeSource=crawl.sourceKey;await persist();
       selectedProject=await S.discover(selectedProject.root,{sourceKey:crawl.sourceKey});send('project-updated',await projectCounts(selectedProject));ensureBackfill();return{...crawl,...result};
     }catch(e){pipeline.update({status:e.message.includes('paused')?'paused':'error',message:`Website crawl stopped: ${e.message}`});throw e;}finally{starting=false;crawlWorker=null;}

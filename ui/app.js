@@ -104,7 +104,8 @@ function controls() {
   $('pauseBtn').disabled = !running || state.status === 'pausing';
   $('startBtn').textContent = ['paused','error','attention'].includes(state.status) ? '▶ Resume review' : '▶ Start review';
   $('exportBtn').disabled = !entries.length;
-  for(const id of ['createWorkspace','importDetected','browseSource','crawlWebsite','crawlUrl','activeSource','reviewSource','sampleFps','frameWidth','readyBuffer','storageLimit','retryPreparation']) $(id).disabled = preparing || running || learning;
+  for(const id of ['createWorkspace','importDetected','browseSource','addWebsiteSource','sourceWebsite','crawlUrl','crawlPermission','activeSource','reviewSource','sampleFps','frameWidth','readyBuffer','storageLimit','retryPreparation']) $(id).disabled = preparing || running || learning;
+  $('crawlWebsite').disabled = preparing || running || learning || ($('sourceWebsite').value==='myfootage'&&!$('crawlPermission').checked);
   $('startPreparation').disabled = preparing || !project || !preparation.counts?.pending;
   $('pausePreparation').disabled = !preparing || preparation.status==='pausing';
   $('syncVerdicts').disabled = !project;
@@ -632,9 +633,10 @@ $('exportBtn').onclick=()=>$('exportDialog').showModal();
 for(const [id,format] of [['exportCsv','csv'],['exportJson','json']])$(id).onclick=act(async()=>{const result=await api.call('export',format,$('exportScope').value);if(result){$('exportDialog').close();toast(`Exported ${result.count} results to ${result.path}`);}});
 api.onState(renderState);
 const bytesLabel=n=>n>=1024**3?`${(n/1024**3).toFixed(2)} GB`:`${Math.round(n/1024**2)} MB`;
+const sourceOrigin=source=>source.kind==='crawled'?'crawled website':source.kind==='website'?'website source · not crawled':'imported file';
 function renderPreparation(s){
   preparation=s;const c=s.counts||{},current=s.current||{};
-  if(s.sources){const wanted=s.activeSource||'',options=()=>[el('option','','All imported URLs'),...s.sources.map(source=>{const origin=source.kind==='crawled'?'crawled website':'imported file';const o=el('option','',`${source.label} · ${origin} · ${Number(source.total).toLocaleString()} URLs`);o.value=source.key;return o;})];for(const id of ['activeSource','reviewSource']){$(id).replaceChildren(...options());$(id).value=wanted;}const selected=s.sources.find(source=>source.key===wanted);$('reviewSourceHeading').textContent=selected?`${selected.label} · ${selected.kind==='crawled'?'CRAWLED WEBSITE':'IMPORTED COLLECTION'}`:'ALL IMPORTED SOURCES';}
+  if(s.sources){const wanted=s.activeSource||'',options=()=>[el('option','','All imported URLs'),...s.sources.map(source=>{const o=el('option','',`${source.label} · ${sourceOrigin(source)} · ${Number(source.total).toLocaleString()} URLs`);o.value=source.key;return o;})];for(const id of ['activeSource','reviewSource']){$(id).replaceChildren(...options());$(id).value=wanted;}const selected=s.sources.find(source=>source.key===wanted);$('reviewSourceHeading').textContent=selected?`${selected.label} · ${sourceOrigin(selected).toUpperCase()}`:'ALL IMPORTED SOURCES';}
   $('queueMetric').textContent=(c.total||0).toLocaleString();$('queueNote').textContent=`${(c.pending||0).toLocaleString()} pending · ${(c.error||0).toLocaleString()} errors · ${(c.unavailable||0).toLocaleString()} preview unavailable`;
   $('readyMetric').textContent=s.backlog?.ready_reels||0;renderBackfill();$('retentionMetric').replaceChildren(document.createTextNode(`${c.hit||0} `),el('em','',`/ ${c.cleaned||0}`));
   $('diskMetric').textContent=bytesLabel(s.footageBytes||0);$('reclaimedNote').textContent=`Saved cards: ${bytesLabel(s.cardBytes||0)} · retained evidence: ${bytesLabel(s.retainedCardBytes||0)} · working: ${bytesLabel(s.workingCardBytes||0)}`;
@@ -651,7 +653,14 @@ $('createWorkspace').onclick=act(async()=>{loadProject(await api.call('create-wo
 async function importSource(file){if(!project)loadProject(await api.call('create-workspace'));const result=await api.call('import-source',file);if(result)toast(`${result.added.toLocaleString()} URLs imported. ${result.alreadyPresent.toLocaleString()} duplicates skipped.`);}
 $('importDetected').onclick=act(()=>importSource($('sourceCollection').value));$('browseSource').onclick=act(()=>importSource(null));
 $('sourceCollection').onchange=()=>{$('sourceDetail').textContent=$('sourceCollection').value||'Choose a collection.';};
-$('crawlWebsite').onclick=act(async()=>{if(!project)loadProject(await api.call('create-workspace'));const result=await api.call('crawl-website',{url:$('crawlUrl').value});prefs.activeSource=result.sourceKey;toast(`${result.label} catalog ready: ${result.total.toLocaleString()} unique video URLs from ${Number(result.pages||result.subthemes||0).toLocaleString()} pages.`);});
+const websitePresets={footagefarm:{url:'https://footagefarm.com/',detail:'Footage Farm uses its tailored theme → subtheme → reel catalog adapter.'},myfootage:{url:'https://www.myfootage.com/',detail:'Add MyFootage to create an empty isolated queue without contacting the site. Its crawler stays locked until you confirm that you have permission and press Crawl authorized source.'}};
+function renderWebsiteSource(resetUrl=false){const selected=$('sourceWebsite').value,preset=websitePresets[selected],myfootage=selected==='myfootage';if(resetUrl&&preset)$('crawlUrl').value=preset.url;$('sourcePermission').hidden=!myfootage;if(!myfootage)$('crawlPermission').checked=false;$('crawlWebsite').disabled=myfootage&&!$('crawlPermission').checked;$('crawlWebsite').textContent=myfootage?'↻ Crawl authorized source':'↻ Crawl source';$('sourceDetail').textContent=preset?.detail||'Add the website as a separate queue, or crawl its same-site public video pages.';}
+$('sourceWebsite').onchange=()=>renderWebsiteSource(true);
+$('crawlUrl').oninput=()=>{let host='';try{host=new URL($('crawlUrl').value).hostname.toLowerCase().replace(/^www\./,'');}catch{}const detected=host==='myfootage.com'?'myfootage':host==='footagefarm.com'?'footagefarm':'custom';if($('sourceWebsite').value!==detected){$('sourceWebsite').value=detected;renderWebsiteSource(false);}};
+$('crawlPermission').onchange=()=>renderWebsiteSource(false);
+$('addWebsiteSource').onclick=act(async()=>{if(!project)loadProject(await api.call('create-workspace'));const result=await api.call('add-website-source',{url:$('crawlUrl').value});prefs.activeSource=result.sourceKey;toast(`${result.label} added as an empty source. No website request was made.`);});
+$('crawlWebsite').onclick=act(async()=>{if(!project)loadProject(await api.call('create-workspace'));const isMyFootage=$('sourceWebsite').value==='myfootage';const result=await api.call('crawl-website',{url:$('crawlUrl').value,authorized:isMyFootage&&$('crawlPermission').checked});prefs.activeSource=result.sourceKey;toast(`${result.label} catalog ready: ${result.total.toLocaleString()} unique video URLs from ${Number(result.pages||result.subthemes||0).toLocaleString()} pages.`);if(isMyFootage)$('crawlPermission').checked=false;renderWebsiteSource(false);});
+renderWebsiteSource(false);
 async function switchSource(select){const key=select.value;const label=select.selectedOptions[0]?.textContent||'selected source';const result=await api.call('set-active-source',key);prefs.activeSource=key;renderPreparation(result.preparation);loadProject(result.project);toast(`Switched to ${label}. Preparation and review now use only this source.`);}
 $('activeSource').onchange=act(()=>switchSource($('activeSource')));
 $('reviewSource').onchange=act(()=>switchSource($('reviewSource')));

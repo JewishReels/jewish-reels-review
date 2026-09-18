@@ -7,12 +7,15 @@ Jewish Reels separates footage preparation from model-backed visual review. Prep
 The source selector limits the active pipeline to one collection without deleting other queues. A source may come from:
 
 - the Footage Farm catalog crawler;
+- a MyFootage source registered locally before any catalog access;
 - the generic same-site crawler;
 - a text, CSV, or JSON list of URLs;
 - a supported queue database; or
 - records previously imported into the workspace.
 
 Crawler boundaries should stay on the selected website. Review the discovered URLs before starting a large preparation run. Source titles and URLs remain local metadata and do not enter ordinary classification prompts.
+
+**Add source** creates an isolated queue and does not contact the website. MyFootage catalog access is a separate, permission-gated action: its crawl button remains disabled until you confirm that you have permission from the website owner. The network crawl starts only when you press **Crawl authorized source**. You can also import an authorized TXT, CSV, or JSON list of individual MyFootage clip URLs; those records are normalized under the same MyFootage source and resolve only to the matching public watermarked preview.
 
 Footage Farm pages are resolved in two stages. The app first uses the page's advertised progressive screener files. If no usable file is present, it considers a video from Footage Farm's official Vimeo account only when the reel number is an exact title match, the account identity is official, the duration agrees, and exactly one candidate passes those checks. Vimeo currently requires an authenticated session for these downloads. Configure **Footage Farm Vimeo access** under **Connection & settings** with a signed-in Edge or Chrome profile, or an exported Netscape cookies file. Close the selected browser if Windows reports that its cookie database is locked.
 

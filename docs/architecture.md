@@ -30,7 +30,7 @@ The renderer has no Node.js or direct filesystem access. `preload.cjs` exposes a
 
 ## Preparation
 
-The producer accepts imported collections or crawler output. Each row belongs to a source key so the UI can operate on one source at a time. It resolves playable media, downloads to staging, probes the source, samples frames, constructs timestamped contact sheets, validates expected coverage, and then publishes the finished set.
+The producer accepts imported collections or crawler output. A website source may be registered with zero URLs, which writes only local source metadata and makes no network request. Each row belongs to a source key so the UI can operate on one source at a time. It resolves playable media, downloads to staging, probes the source, samples frames, constructs timestamped contact sheets, validates expected coverage, and then publishes the finished set.
 
 Fixed sampling captures one frame per second. Adaptive modes may examine two or four candidates per second and retain extra frames only when their pixels differ materially. Published cards contain whole sampled frames; classification can split large contact sheets into overlapping image regions to preserve readable detail.
 
@@ -99,7 +99,7 @@ Retained hit cards and manual-hold cards require deliberate review or archiving.
 
 ## Repository modules
 
-- `lib/website-crawler.cjs` and `lib/footagefarm.cjs` discover public video pages.
+- `lib/website-crawler.cjs`, `lib/footagefarm.cjs`, and `lib/myfootage.cjs` discover supported catalog records. MyFootage enumeration requires an explicit permission confirmation from the renderer through the main process and worker.
 - `lib/queue.cjs`, `lib/pipeline.cjs`, `lib/media.cjs`, and `lib/storage.cjs` own preparation and persistence.
 - `lib/engine.cjs`, `lib/review-video.cjs`, `lib/openrouter.cjs`, and `lib/output-contract.cjs` own visual review.
 - `lib/criteria.cjs`, `lib/feedback.cjs`, and the learning modules own editable rules and human labels.
