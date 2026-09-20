@@ -23,13 +23,13 @@ test('128 is a global request ceiling across four videos, including independent 
  const e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async({image,model})=>{active++;peak=Math.max(peak,active);assert.ok(active<=128);const id=image.data+'/'+model.id;assert.ok(!seen.has(id));seen.add(id);ids.add(image.data.split(':')[0]);if(seen.size===128)release();await barrier;await sleep(8);active--;return no;}});
  await e.run({...f.options,workers:128,secondary,verificationMode:'all'});assert.equal(e.state.status,'complete',e.state.message);assert.equal(peak,128);assert.equal(seen.size,256);assert.equal(ids.size,4);assert.equal((await S.loadLedger(f.root)).entries.length,4);
 });
-test('128 configured workers do not leave short completed videos draining empty gate turns',async t=>{
- const f=await fixture(t,16,1,1);let peak=0,writes=0;const started=Date.now(),append=S.appendVerdicts;S.appendVerdicts=async(...args)=>{writes++;return append(...args);};t.after(()=>{S.appendVerdicts=append;});
- const e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async()=>{await sleep(5);return no;}});
+test('more than sixteen short videos can fill the global request pool without draining empty gate turns',async t=>{
+ const f=await fixture(t,32,1,1);let peak=0,writes=0,entered=0,release;const barrier=new Promise(r=>{release=r}),started=Date.now(),append=S.appendVerdicts;S.appendVerdicts=async(...args)=>{writes++;return append(...args);};t.after(()=>{S.appendVerdicts=append;});
+ const e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async()=>{entered++;if(entered===32)release();await barrier;return no;}});
  e.on('state',s=>{peak=Math.max(peak,s.activeRequests);});
- await e.run({...f.options,workers:128,videoConcurrency:16});
- assert.equal(e.state.status,'complete',e.state.message);assert.equal((await S.loadLedger(f.root)).entries.length,16);assert.ok(peak>=8);
- assert.ok(writes<16,'simultaneous completed videos should share durable ledger writes');
+ await e.run({...f.options,workers:128,videoConcurrency:32});
+ assert.equal(e.state.status,'complete',e.state.message);assert.equal((await S.loadLedger(f.root)).entries.length,32);assert.equal(peak,32);
+ assert.ok(writes<32,'simultaneous completed videos should share durable ledger writes');
  assert.ok(Date.now()-started<2000,'short videos should settle without hundreds of empty permit turns');
 });
 test('a hit cancels only its own video; all regions of the other video finish',async t=>{
@@ -67,8 +67,9 @@ test('fair requests rotate among three waiting videos without starving the third
  const gate=new RequestGate({workers:1,mode:'concurrent',sleep:()=>sleep(1)}),held=await gate.acquire(()=>false,'start'),order=[];
  const jobs=[];for(let i=0;i<3;i++)for(const owner of ['a','b','c'])jobs.push(gate.acquire(()=>false,owner).then(release=>{order.push(owner);release();}));held();await Promise.all(jobs);assert.deepEqual(order,['a','b','c','a','b','c','a','b','c']);
 });
-test('invalid video concurrency is rejected before work starts',async t=>{
- const f=await fixture(t,1,1,1),e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async()=>assert.fail()});for(const value of [0,17,1.5,NaN])await assert.rejects(e.run({...f.options,videoConcurrency:value}),/videos at once/);assert.equal(e.running,false);
+test('up to 128 videos are accepted and larger concurrency is rejected before work starts',async t=>{
+ const f=await fixture(t,1,1,1),accepted=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async()=>no});await accepted.run({...f.options,videoConcurrency:128});assert.equal(accepted.state.status,'complete');
+ const e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async()=>assert.fail()});for(const value of [0,129,1.5,NaN])await assert.rejects(e.run({...f.options,videoConcurrency:value}),/videos at once/);assert.equal(e.running,false);
 });
 test('newly published videos enter empty slots while an older video still has in-flight requests',async t=>{
  const f=await fixture(t,1,8,1),releases=[];let producing=true,calls=0;

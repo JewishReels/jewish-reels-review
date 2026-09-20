@@ -374,7 +374,7 @@ async function createWindow() {
     if (primary.id === secondary?.id) throw new Error('Independent verification requires two different models.');
     const budget = Number(options.budget); if (!(budget > 0 && budget <= 10000)) throw new Error('Run budget must be between $0.01 and $10,000.');
     const workers = Number(options.workers ?? 4); if (!Number.isInteger(workers) || workers < 1 || workers > 128) throw new Error('Choose between 1 and 128 review workers.');
-    const videoConcurrency = Number(options.videoConcurrency ?? settings.videoConcurrency ?? 4); if (!Number.isInteger(videoConcurrency) || videoConcurrency < 1 || videoConcurrency > 16) throw new Error('Choose between 1 and 16 videos at once.');
+    const videoConcurrency = Number(options.videoConcurrency ?? settings.videoConcurrency ?? 4); if (!Number.isInteger(videoConcurrency) || videoConcurrency < 1 || videoConcurrency > 128) throw new Error('Choose between 1 and 128 videos at once.');
     const dispatchMode = options.dispatchMode ?? settings.dispatchMode ?? 'one-at-a-time';
     if (!['one-at-a-time','concurrent'].includes(dispatchMode)) throw new Error('Choose Take turns or Run concurrently.');
     const verificationMode = options.verificationMode || 'positives';

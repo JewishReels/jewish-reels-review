@@ -9,6 +9,7 @@ test('64 request workers maintain 32 clips ahead in addition to active reviews',
 });
 test('128 request workers maintain 64 clips ahead without exceeding the queue cap',()=>{
  assert.equal(preparationReserve(3,{workers:128,videoConcurrency:16}),64);
+ assert.equal(preparationReserve(3,{workers:128,videoConcurrency:128}),64);
 });
 test('the reserve follows configured concurrency and preserves larger user minimums',()=>{
  assert.equal(preparationReserve(3),3);assert.equal(preparationReserve(10,{workers:4,videoConcurrency:4}),10);

@@ -53,6 +53,7 @@ const helpButton=document.createElement('button');helpButton.className='button s
 const prepHelp=helpButton.cloneNode(true);prepHelp.id='preparationHelpButton';prepHelp.onclick=()=>helpDialog.showModal();document.querySelector('#preparationView header').append(prepHelp);
 const workerDialog=document.createElement('dialog');workerDialog.id='workerDialog';workerDialog.className='modal compact';workerDialog.innerHTML='<form method="dialog" class="modal-top"><h2 id="workerDialogTitle">Worker</h2><button class="icon-button" aria-label="Close worker details">×</button></form><p id="workerDialogDetail"></p>';document.body.append(workerDialog);
 let selectedWorker=null;
+const activeVideoRows=new Map();
 for(const notice of [$('rateLimitNotice'),recoveryNotice]){
  notice.tabIndex=0;notice.setAttribute('role','button');notice.setAttribute('aria-label','Open full recovery notice');
  const open=()=>{selectedWorker=null;$('workerDialogTitle').textContent='Recovery details';$('workerDialogDetail').textContent=notice.textContent;workerDialog.showModal();};
@@ -191,12 +192,18 @@ function renderWorkers() {
   const limit = concurrent ? count : 1;
   $('workerHelp').textContent = concurrent ? 'Up to ' + count + ' image requests TOTAL across up to ' + videoLimit + ' videos. Workers share capacity fairly. A hit stops only that video’s new requests; other videos continue. Rate limits pause new requests globally.' : 'Up to ' + videoLimit + ' videos share one request at a time, with a 0.5-second pause after each response. A hit stops only its video’s remaining work.';
   $('workerStatus').textContent = running ? active.length + '/' + limit + ' requests · ' + (state.videos || []).length + '/' + videoLimit + ' videos' : count + ' workers · up to ' + videoLimit + ' videos';
-  $('activeVideoList').replaceChildren(...(state.videos || []).map(v => {
-    const row = el('div', 'active-video-row');
-    row.append(el('strong', '', v.id), el('span', '', (v.completedCards || 0) + '/' + (v.cardsTotal || 0) + ' cards · ' + (v.active || []).length + ' requests'));
-    row.title = v.id + ' · ' + (v.title || '') + ' · ' + (v.regionsSaved || 0) + ' regions saved · ' + (v.current?.card || v.status || 'checking');
-    return row;
-  }));
+  const videos=state.videos||[],visibleIds=new Set(videos.map(v=>String(v.id)));
+  for(const [id,row] of activeVideoRows)if(!visibleIds.has(id)){row.remove();activeVideoRows.delete(id);}
+  videos.forEach((v,index)=>{
+    const id=String(v.id);let row=activeVideoRows.get(id);
+    if(!row){row=el('div','active-video-row');row.append(el('strong'),el('span'));activeVideoRows.set(id,row);}
+    const detail=(v.completedCards||0)+'/'+(v.cardsTotal||0)+' cards · '+(v.active||[]).length+' requests';
+    const title=id+' · '+(v.title||'')+' · '+(v.regionsSaved||0)+' regions saved · '+(v.current?.card||v.status||'checking');
+    if(row.firstChild.textContent!==id)row.firstChild.textContent=id;
+    if(row.lastChild.textContent!==detail)row.lastChild.textContent=detail;
+    if(row.title!==title)row.title=title;
+    if($('activeVideoList').children[index]!==row)$('activeVideoList').append(row);
+  });
   $('workerRate').textContent = `${state.requests || 0} replies · ${(state.formatRetries||0)+(state.retries||0)+(state.networkRetries||0)+(state.providerRetries||0)} retries`;
   $('workerRate').title = `${state.requests || 0} responses · ${state.formatRetries || 0} verdict retries · ${state.retries || 0} rate-limit retries · ${state.networkRetries || 0} connection retries · ${state.providerRetries||0} provider retries`;
   renderRateLimit();
