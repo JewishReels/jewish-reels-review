@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.64 · Windows 10 and 11
+  <a href="https://jewishreels.com/">JewishReels.com</a> · Version 2.4.74 · Windows 10 and 11
 </p>
 
 ![Jewish Reels displaying a real saved match, its source contact sheet, highlighted visual evidence, and model explanation](docs/screenshots/03-review-match-live.png)
@@ -86,12 +86,16 @@ Jewish Reels can start from:
 
 - the Footage Farm catalog crawler;
 - MyFootage as an empty, isolated source before any website access;
+- the Prelinger Archives public catalog on Internet Archive;
+- the Library of Congress National Screening Room;
 - the generic same-site website crawler;
 - a text, CSV, or JSON file containing URLs;
 - a supported queue database; or
 - records already imported into the current workspace.
 
 **Add source** records the source locally and makes no request to the website. The generic crawler stays within the selected website and looks for pages containing playable video. The Footage Farm adapter understands that catalog's theme, subtheme, and reel structure.
+
+Prelinger and the National Screening Room use their archives' structured public catalogs instead of guessing links from rendered pages. The Prelinger adapter follows Internet Archive's cursor-paginated search through the complete collection and resolves each item through its public file metadata. The Library of Congress adapter follows the National Screening Room JSON catalog, preserves each separately playable MP4 resource, and subdivides a catalog range when a large results page fails so that neighboring records are not discarded. Full live validation for version 2.4.74 enumerated 10,461 Prelinger films and 1,296 National Screening Room video resources without importing them into the active workspace. Selecting either preset still makes no network request until **Crawl source** is pressed.
 
 MyFootage has an additional permission gate. Adding it creates a zero-URL source that can be selected without contacting MyFootage. Its crawl control stays locked until the operator confirms permission from the website owner; the network crawl begins only after that confirmation and a separate press of **Crawl authorized source**. The tailored crawler divides the official MyFootage catalog into the site's four exhaustive format classes so it can move beyond the site's 10,000-result ceiling and include clips that have no decade tag. Each partition receives an isolated temporary website session, every continuation page is checkpointed, and the crawler verifies the site's declared row count, rejects replayed pages, and rejects overlap between supposedly exclusive partitions. A live audit for this version accounted for all 10,007 catalog rows: 10,003 public video previews and four image-only records, which are reported but not added to the video queue. An authorized TXT, CSV, or JSON list of individual MyFootage clip URLs can also be imported into the same isolated source. Imported collections can be selected again later, and each source retains its queue, preparation state, verdicts, and retry history.
 

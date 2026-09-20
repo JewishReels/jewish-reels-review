@@ -39,6 +39,8 @@ Preparation uses separate limits for source work and FFmpeg work. Up to twelve i
 
 Footage Farm's ordinary page and video downloads remain direct. The optional Scrapfly adapter is a separate resolver transport restricted to the official Footage Farm Vimeo profile-search URL and numeric-video oEmbed metadata. It uses Scrapfly-managed retries, a 160-second client window, and at most two concurrent requests. Existing reel-number, official-account, duration, and unique-match checks run on the returned metadata before yt-dlp can receive a URL. A verified URL is retained across a Vimeo-authentication retry so recovery does not repeat the rate-limited search.
 
+Prelinger and Library of Congress sources use structured public catalogs rather than the generic HTML crawler. Internet Archive enumeration uses cursor pagination and resolves playable MP4 files from item metadata. National Screening Room enumeration uses the Library of Congress JSON API and preserves every separately playable resource. If a large Library of Congress result page fails, the adapter recursively narrows that range until it can recover the available individual records instead of skipping the entire page.
+
 The producer maintains one durable owner for identical source pixels. Exact downloaded bytes and exact story boundaries may reuse an owner's published cards; a segment inside a long reel remains distinct from the whole reel and from other story ranges. The downloaded source is hashed once while its file identity is stable. Publication then verifies the generated cards and retires the unchanged owned source without rereading the entire MP4.
 
 ## Review
@@ -103,7 +105,7 @@ Retained hit cards and manual-hold cards require deliberate review or archiving.
 
 ## Repository modules
 
-- `lib/website-crawler.cjs`, `lib/footagefarm.cjs`, and `lib/myfootage.cjs` discover supported catalog records. MyFootage enumeration requires an explicit permission confirmation from the renderer through the main process and worker.
+- `lib/website-crawler.cjs`, `lib/footagefarm.cjs`, `lib/myfootage.cjs`, and `lib/public-archives.cjs` discover supported catalog records. MyFootage enumeration requires an explicit permission confirmation from the renderer through the main process and worker. The public-archive module implements cursor-safe Prelinger enumeration and range-recovering National Screening Room enumeration.
 - `lib/queue.cjs`, `lib/pipeline.cjs`, `lib/media.cjs`, `lib/scrapfly.cjs`, and `lib/storage.cjs` own preparation and persistence.
 - `lib/engine.cjs`, `lib/review-video.cjs`, `lib/openrouter.cjs`, and `lib/output-contract.cjs` own visual review.
 - `lib/criteria.cjs`, `lib/feedback.cjs`, and the learning modules own editable rules and human labels.

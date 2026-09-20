@@ -8,6 +8,8 @@ The source selector limits preparation and each new visual-review run to one col
 
 - the Footage Farm catalog crawler;
 - a MyFootage source registered locally before any catalog access;
+- the Prelinger Archives public catalog on Internet Archive;
+- the Library of Congress National Screening Room;
 - the generic same-site crawler;
 - a text, CSV, or JSON list of URLs;
 - a supported queue database; or
@@ -16,6 +18,8 @@ The source selector limits preparation and each new visual-review run to one col
 Crawler boundaries should stay on the selected website. Review the discovered URLs before starting a large preparation run. Source titles and URLs remain local metadata and do not enter ordinary classification prompts.
 
 **Add source** creates an isolated queue and does not contact the website. MyFootage catalog access is a separate, permission-gated action: its crawl button remains disabled until you confirm that you have permission from the website owner. The network crawl starts only when you press **Crawl authorized source**. The crawler uses MyFootage's four official format partitions because decade browsing omits untagged records and the unpartitioned catalog stops at 10,000 results. It verifies every declared catalog row and adds only records with a public video preview; image-only rows are counted and reported without entering the video queue. You can also import an authorized TXT, CSV, or JSON list of individual MyFootage clip URLs; those records are normalized under the same MyFootage source and resolve only to the matching public watermarked preview.
+
+Prelinger and the National Screening Room use structured public catalog APIs. The Prelinger crawl follows Internet Archive's cursor pagination and resolves an item's public MP4 files from Internet Archive metadata. The National Screening Room crawl follows the Library of Congress JSON catalog, creates a separate queue record for every direct MP4 resource, and automatically subdivides a failed catalog range so a bad bulk page cannot hide otherwise available records. Adding either source remains local; enumeration begins only when you press **Crawl source**.
 
 Footage Farm pages are resolved in two stages. The app first uses the page's advertised progressive screener files. If no usable file is present, it considers a video from Footage Farm's official Vimeo account only when the reel number is an exact title match, the account identity is official, the duration agrees, and exactly one candidate passes those checks. When Vimeo rate-limits this public search, configure **Scrapfly resolver** under **Connection & settings**. Scrapfly is limited to the profile-search and oEmbed metadata requests, with at most two requests in flight; the video itself never passes through Scrapfly. Vimeo currently requires an authenticated session for these downloads, so configure **Footage Farm Vimeo access** separately with a signed-in Edge or Chrome profile, or an exported Netscape cookies file. Close the selected browser if Windows reports that its cookie database is locked.
 

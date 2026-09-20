@@ -14,6 +14,13 @@ test('MyFootage source registration is separate from its permission-gated crawl 
  assert.match(app,/added as an empty source\. No website request was made\./);
 });
 
+test('public film archives have explicit presets and tailored catalog dispatch',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','ui','index.html'),'utf8'),app=fs.readFileSync(path.join(__dirname,'..','ui','app.js'),'utf8'),crawler=fs.readFileSync(path.join(__dirname,'..','lib','website-crawler.cjs'),'utf8');
+ assert.match(html,/value="prelinger">Prelinger Archives</);assert.match(html,/value="loc">Library of Congress/);
+ assert.match(app,/archive\.org\/details\/prelinger/);assert.match(app,/national-screening-room/);
+ assert.match(crawler,/crawlPrelinger\(options\)/);assert.match(crawler,/crawlLoc\(options\)/);
+});
+
 test('saved-hit views use the workspace-wide hit collection while active review stays source-scoped',()=>{
  const app=fs.readFileSync(path.join(__dirname,'..','ui','app.js'),'utf8'),bulk=fs.readFileSync(path.join(__dirname,'..','ui','bulk-feedback.js'),'utf8'),main=fs.readFileSync(path.join(__dirname,'..','main.cjs'),'utf8'),storage=fs.readFileSync(path.join(__dirname,'..','lib','storage.cjs'),'utf8'),html=fs.readFileSync(path.join(__dirname,'..','ui','index.html'),'utf8');
  assert.match(storage,/workspaceHits:\s*current\.filter\(entry => entry\.verdict === 'jewish'\)/);
