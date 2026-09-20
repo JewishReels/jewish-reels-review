@@ -23,6 +23,15 @@ test('128 is a global request ceiling across four videos, including independent 
  const e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async({image,model})=>{active++;peak=Math.max(peak,active);assert.ok(active<=128);const id=image.data+'/'+model.id;assert.ok(!seen.has(id));seen.add(id);ids.add(image.data.split(':')[0]);if(seen.size===128)release();await barrier;await sleep(8);active--;return no;}});
  await e.run({...f.options,workers:128,secondary,verificationMode:'all'});assert.equal(e.state.status,'complete',e.state.message);assert.equal(peak,128);assert.equal(seen.size,256);assert.equal(ids.size,4);assert.equal((await S.loadLedger(f.root)).entries.length,4);
 });
+test('128 configured workers do not leave short completed videos draining empty gate turns',async t=>{
+ const f=await fixture(t,16,1,1);let peak=0,writes=0;const started=Date.now(),append=S.appendVerdicts;S.appendVerdicts=async(...args)=>{writes++;return append(...args);};t.after(()=>{S.appendVerdicts=append;});
+ const e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async()=>{await sleep(5);return no;}});
+ e.on('state',s=>{peak=Math.max(peak,s.activeRequests);});
+ await e.run({...f.options,workers:128,videoConcurrency:16});
+ assert.equal(e.state.status,'complete',e.state.message);assert.equal((await S.loadLedger(f.root)).entries.length,16);assert.ok(peak>=8);
+ assert.ok(writes<16,'simultaneous completed videos should share durable ledger writes');
+ assert.ok(Date.now()-started<2000,'short videos should settle without hundreds of empty permit turns');
+});
 test('a hit cancels only its own video; all regions of the other video finish',async t=>{
  const f=await fixture(t,2,10,2),calls={};const e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async({image})=>{const id=image.data.split(':')[0];calls[id]=(calls[id]||0)+1;await sleep(id==='1'?12:25);return id==='1'?hit:no;}});
  await e.run({...f.options,workers:4,videoConcurrency:2});assert.equal(e.state.status,'complete',e.state.message);assert.ok(calls['1']<=4);assert.equal(calls['2'],20);const entries=(await S.loadLedger(f.root)).entries;assert.equal(entries.find(v=>v.id==='1').verdict,'jewish');assert.equal(entries.find(v=>v.id==='2').cards_reviewed_count,10);
@@ -67,4 +76,19 @@ test('newly published videos enter empty slots while an older video still has in
  const run=e.run({...f.options,workers:4,videoConcurrency:2,followPreparation:()=>producing});await until(()=>releases.length===4);
  const dir=path.join(f.root,'frames','2','cards');await fs.mkdir(dir,{recursive:true});await fs.writeFile(path.join(dir,'card_1.jpg'),'new footage');
  await until(()=>e.state.videos.some(v=>v.id==='2'));assert.equal((await S.loadLedger(f.root)).entries.length,0);releases.forEach(r=>r());await run;assert.equal(e.state.status,'complete',e.state.message);assert.equal((await S.loadLedger(f.root)).entries.length,2);
+});
+test('durable verdict writes do not occupy model-review video slots',async t=>{
+ const f=await fixture(t,3,1,1),seen=new Set(),append=S.appendVerdicts;let releaseCommit,enteredCommit;const held=new Promise(r=>{releaseCommit=r}),entered=new Promise(r=>{enteredCommit=r});let first=true;
+ S.appendVerdicts=async(...args)=>{if(first){first=false;enteredCommit();await held;}return append(...args);};t.after(()=>{S.appendVerdicts=append;});
+ const e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async({image})=>{seen.add(image.data.split(':')[0]);return no;}});
+ const run=e.run({...f.options,workers:2,videoConcurrency:2});await entered;await until(()=>seen.has('3'));releaseCommit();await run;
+ assert.equal(e.state.status,'complete',e.state.message);assert.deepEqual([...seen].sort(),['1','2','3']);assert.equal((await S.loadLedger(f.root)).entries.length,3);
+});
+test('source-scoped runs checkpoint into bounded shards without rewriting the legacy workspace checkpoint',async t=>{
+ const f=await fixture(t,2,2,1);await fs.writeFile(path.join(f.root,'reelsight_manifest.json'),JSON.stringify([{id:'1',title:'Source A',source_key:'source-a'},{id:'2',title:'Source B',source_key:'source-b'}]));
+ const seen=[];const e=new ReviewEngine({prepareCard:f.prepareCard,reviewer:async({image})=>{seen.push(image.data.split(':')[0]);return no;}});
+ await e.run({...f.options,sourceKey:'source-a'});assert.equal(e.state.status,'complete',e.state.message);assert.deepEqual([...new Set(seen)],['1']);
+ assert.equal(await S.exists(path.join(f.root,'logs','reelsight_checkpoint.json')),false);
+ const folder=path.join(f.root,'logs','reelsight-checkpoints',S.sha('source-a').slice(0,16)),files=await fs.readdir(folder);assert.ok(files.length>=1&&files.length<=16);
+ for(const file of files){const value=await S.readJson(path.join(folder,file));assert.equal(value.source_key,'source-a');assert.deepEqual(value.videos,{});}
 });

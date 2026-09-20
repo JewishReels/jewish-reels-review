@@ -4,8 +4,17 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { ReviewEngine } = require('../lib/engine.cjs');
+const { ReviewEngine, createCheckpointSaver } = require('../lib/engine.cjs');
 const S = require('../lib/storage.cjs');
+
+test('a checkpoint waiter resolves after its own durable revision while newer progress keeps writing',async()=>{
+  const releases=[];let checkpoint={step:1};
+  const save=createCheckpointSaver('checkpoint.json',()=>checkpoint,{delayMs:0,atomicJson:async(_path,value)=>new Promise(resolve=>releases.push(()=>resolve(value)))});
+  const first=save({wait:true});while(releases.length<1)await new Promise(resolve=>setTimeout(resolve,1));
+  checkpoint={step:2};const second=save({wait:true});let firstDone=false,secondDone=false;first.then(()=>{firstDone=true;});second.then(()=>{secondDone=true;});
+  releases.shift()();await first;assert.equal(firstDone,true);assert.equal(secondDone,false);
+  while(releases.length<1)await new Promise(resolve=>setTimeout(resolve,1));releases.shift()();await second;assert.equal(secondDone,true);
+});
 const { validateResult, corroborates } = require('../lib/policy.cjs');
 const { parseContent, reviewImage } = require('../lib/openrouter.cjs');
 const { positions, makeImageAdapter } = require('../lib/images.cjs');
