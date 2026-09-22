@@ -78,8 +78,11 @@ Read the [User guide](user-guide.md) for the complete workflow and [Classificati
 | `npm test` | Run the Node test suite with temporary workspaces and mocked providers. |
 | `npm run screenshots` | Build the local demonstration screenshot fixtures. |
 | `npm run package` | Build a local Windows x64 application folder. |
+| `npm run package:msix` | Create a locally signed MSIX from the packaged application folder. |
 
-The packaging task requires the media-tool directory described above. It writes outside the repository, does not create an installer, and does not sign the application.
+The ordinary packaging task requires the media-tool directory described above and writes outside the repository. Its unpackaged executable is unsigned and may be rejected when Windows 11 Smart App Control is enforcing its verified-and-reputable policy.
+
+For a controlled development machine, run `npm run package:msix` after `npm run package`. The MSIX task reuses or creates an RSA code-signing certificate in the current developer's personal certificate store, signs the complete package, and exports only the public certificate to `outputs/local-msix`. Run `scripts/install-local-msix.ps1` from an elevated PowerShell process with the generated package and certificate paths. The installer adds that public certificate to **Local Machine → Trusted People**, installs or updates the package, replaces the desktop shortcut with its Windows application identity, and launches Jewish Reels. Smart App Control remains enabled. Use Microsoft Store signing or a trusted signing provider for distribution to other computers.
 
 ## Related documentation
 

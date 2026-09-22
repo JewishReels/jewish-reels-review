@@ -403,6 +403,9 @@ The main development commands are:
 | `npm start` | Start the Electron desktop application. |
 | `npm test` | Run the complete Node test suite with temporary workspaces and mocked providers. |
 | `npm run package` | Build a local Windows x64 application folder using the sibling media-tool bundle. |
+| `npm run package:msix` | Wrap the existing application folder in a locally signed MSIX for Smart App Control compatible development use. |
+
+Windows 11 Smart App Control can reject an unpackaged development executable even when it was built locally. After `npm run package`, `npm run package:msix` creates a signed package and exports only its public development certificate under `outputs/local-msix`. The private key remains in the current developer's certificate store. Install that public certificate in **Local Machine → Trusted People**, install the MSIX, and launch the resulting Start application or desktop shortcut. This local certificate flow is intended for a controlled development machine; a broadly distributed build should use Microsoft Store signing or a certificate from a trusted signing provider.
 
 ## Workspace and repository layout
 
